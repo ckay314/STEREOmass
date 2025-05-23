@@ -192,6 +192,114 @@ def findDir(Aparams, Bparams):
     outMass = massA[minIdx[0]]
     return outDir, outMass
 
+def comboFindDir(Aparams, Bparams):
+    # params are [satLon, h, mass, CPA]
+    lonA, hA, mA, cpaA = Aparams
+    lonB, hB, mB, cpaB = Bparams
+    
+    # readjust h sign based on CPA
+    hA = np.abs(hA)
+    if cpaA < 180.:
+        hA *= -1
+
+    hB = np.abs(hB)
+    if cpaB < 180.:
+        hB *= -1
+    
+    # Standard mass calc (same as other version)
+    # Get plane of sky in 0-360 deg
+    posA = (lonA + 90 + 360) % 360
+    posB = (lonB + 90 + 360) % 360
+    if hA > 0:
+        arng = [(posA-90 +360) % 360, (posA+90 +360) % 360]
+    else:
+        arng = [(posA-270 +360), (posA-90 + 360) % 360]
+    if arng[1] < arng[0]: arng[1] += 360
+        
+    if hB > 0:
+        brng = [(posB-90 + 360) % 360, (posB+90 + 360) % 360]
+    else:
+        brng = [(posB-270 +360) % 360, (posB-90 + 360) % 360]
+        
+    if brng[1] < brng[0]: brng[1] += 360
+    
+    lonMin = np.max([arng[0], brng[0]])    
+    lonMax = np.min([arng[1], brng[1]])   
+    if lonMax < lonMin:
+        lonMax += 360 
+    dirs = np.arange(lonMin,lonMax,1.)
+    sepA = dirs - (lonA + np.sign(hA)*90)
+    sepB = dirs - (lonB + np.sign(hB)*90)
+    
+    sepA[np.where(sepA > 180.)] = 360 - sepA[np.where(sepA > 180.)] 
+    sepB[np.where(sepB > 180.)] = 360 - sepB[np.where(sepB > 180.)] 
+    
+    routA0, BA0 = elTheory(hA, 0)
+    routB0, BB0 = elTheory(hB, 0)
+    
+    routAs, BAs = elTheory(hA, np.abs(sepA))
+    routBs, BBs = elTheory(hB, np.abs(sepB))
+    
+    normAs = BAs/BA0
+    normBs = BBs/BB0
+
+    massA = mA/normAs
+    massB = mB/normBs
+    massDiff = massA - massB
+    
+    
+    # Adding in calc of lat and deproj height
+    zA = np.cos(cpaA*np.pi/180.) * np.abs(hA)
+    zB = np.cos(cpaB*np.pi/180.) * np.abs(hB)
+    # Non vertical component of projected radius
+    projRA = np.sqrt(hA**2 - zA**2)
+    projRB = np.sqrt(hB**2 - zB**2)
+
+    # Separation between PoS and CME A
+    sep1 = np.abs(lonA + 90 - dirs) % 360
+    sep1[np.where(sep1 > 180.)] = 360 - sep1[np.where(sep1 > 180.)]
+    sep2 = np.abs(lonA - 90 - dirs) % 360
+    sep2[np.where(sep2 > 180.)] = 360 - sep2[np.where(sep2 > 180.)]
+    sepA = np.array([np.min([sep1[i], sep2[i]]) for i in range(len(sep1))])
+    # Separation between PoS and CME B
+    sep1 = np.abs(lonB + 90 - dirs) % 360
+    sep1[np.where(sep1 > 180.)] = 360 - sep1[np.where(sep1 > 180.)]
+    sep2 = np.abs(lonB - 90 - dirs) % 360
+    sep2[np.where(sep2 > 180.)] = 360 - sep2[np.where(sep2 > 180.)]
+    sepB = np.array([np.min([sep1[i], sep2[i]]) for i in range(len(sep1))])
+    # Unproject the equatorial component
+    dpRA = projRA / np.cos(sepA*np.pi/180.)
+    dpRB = projRB / np.cos(sepB*np.pi/180.)
+    # Add back in vert components to get full R of CoM
+    actRA = np.sqrt(dpRA**2 + zA**2)
+    actRB = np.sqrt(dpRB**2 + zB**2)
+    rDiff = actRA - actRB
+    # Get latitude
+    latA = np.arctan2(zA, np.abs(actRA)) * 180 / np.pi
+    latB = np.arctan2(zB, np.abs(actRB)) * 180 / np.pi
+    latDiff = latA - latB
+    
+    sclFactors = [0.5*(mA+mB), 1., 5.]
+    sumScores = []
+    for i in range(len(sepA)):
+        sumScore = np.abs(massDiff[i]/sclFactors[0]) + np.abs(rDiff[i]/sclFactors[1]) + np.abs(latDiff[i]/sclFactors[2])
+        #print (dirs[i], massDiff[i]/sclFactors[0], rDiff[i]/sclFactors[1], latDiff[i]/sclFactors[2], sumScore)
+        sumScores.append(sumScore)
+    bestIdx = np.where(sumScores == np.min(sumScores))[0]
+
+    # Get the direction and corrected mass
+    outDir = dirs[bestIdx[0]]
+    outMassA = massA[bestIdx[0]]
+    outMassB = massB[bestIdx[0]]
+    outLatA = latA[bestIdx[0]]
+    outLatB = latB[bestIdx[0]]
+    outRA = actRA[bestIdx[0]]
+    outRB = actRB[bestIdx[0]]
+    
+    
+    return outDir, outMassA, outMassB, outLatA, outLatB, outRA, outRB
+
+
 def test_it():
     # Get the satellite positions
     timeA = parse_time('2008-12-14')
@@ -212,7 +320,7 @@ def test_it():
     outDir, outMass = findDir([lonA, rA, mA], [lonB, rB, mB])
     print (lonA, rA, mA, lonB, rB, mB, outDir, outMass)
     
-def runCORSETcases(yr=None, sclB=1):
+def runCORSETcases(yr=None, sclB=1, fancyMode=False):
     # import the data structure
     f =  open('allRes.pkl', 'rb')
     res, id2time, time2time = pickle.load(f)
@@ -263,11 +371,6 @@ def runCORSETcases(yr=None, sclB=1):
                 cpaAs, cpaBs = [], []
                 hFAs, hFBs = [], []
                 
-                '''myRes.CCoMtimesA = np.array(times)
-                myRes.CCoM_CPAsA = np.array(CPAs)
-                myRes.CCoM_hFsA  = np.array(hFs)
-                myRes.CCoM_AWsA  = np.array(AWs)'''
-                
                 for aTime in matcht:
                     thisIdxA = np.where(myRes.CORSETtimesA == aTime)[0]
                     mAs.append(myRes.CORSETmassesA[thisIdxA[0]])
@@ -296,62 +399,76 @@ def runCORSETcases(yr=None, sclB=1):
                 for i in range(len(idxa)):
                     #if (np.abs(htsa[i]) > 1 ) & (np.abs(htsb[i]) > 1 ):
                     #    print(key, lonA, htsa[i], mAs[i], lonB, htsb[i], mBs[i])
-                    try:
-                        outDir, outMass = findDir([lonA, htsa[i], mAs[i]], [lonB, htsb[i], sclB*mBs[i]])
-                    except:
-                        outDir, outMass = None, None
-                        print ('Error in ', key)
+                    if not fancyMode:
+                        try:
+                            outDir, outMass = findDir([lonA, htsa[i], mAs[i]], [lonB, htsb[i], sclB*mBs[i]])
+                        except:
+                            outDir, outMass = None, None
+                            print ('Error in ', key)
+                        #print (lonA, htsa[i], mAs[i], cpaAs[i])    
+                        #print (lonB, htsb[i], mBs[i], cpaBs[i])   
+                        if outDir:
+                            # Get the deproj lats and heights
+                            # Get z component from CoM height and CPA
+                            zA = np.cos(cpaAs[i]*np.pi/180.) * np.abs(htsa[i])
+                            zB = np.cos(cpaBs[i]*np.pi/180.) * np.abs(htsb[i])
+                            # Non vertical component of projected radius
+                            projRA = np.sqrt(htsa[i]**2 - zA**2)
+                            projRB = np.sqrt(htsb[i]**2 - zB**2)
+                            # Separation between PoS and CME A
+                            sep1 = np.abs(lonA + 90 - outDir) % 360
+                            if sep1 > 180: sep1 = 360 - sep1
+                            sep2 = np.abs(lonA - 90 - outDir) % 360
+                            if sep2 > 180: sep2 = 360 - sep2
+                            sepA = np.min([sep1, sep2])
+                            # Separation between PoS and CME B
+                            sep1 = np.abs(lonB + 90 - outDir) % 360
+                            if sep1 > 180: sep1 = 360 - sep1
+                            sep2 = np.abs(lonB - 90 - outDir) % 360
+                            if sep2 > 180: sep2 = 360 - sep2
+                            sepB = np.min([sep1, sep2])
+                            # Unproject the equatorial component
+                            dpRA = projRA / np.cos(sepA*np.pi/180.)
+                            dpRB = projRB / np.cos(sepB*np.pi/180.)
+                            # Add back in vert components to get full R of CoM
+                            actRA = np.sqrt(dpRA**2 + zA**2)
+                            actRB = np.sqrt(dpRB**2 + zB**2)
+                            # Get latitude
+                            latA = np.arctan2(zA, np.abs(actRA)) * 180 / np.pi
+                            latB = np.arctan2(zB, np.abs(actRB)) * 180 / np.pi
                         
-                    if outDir:
-                        # Get the deproj lats and heights
-                        # Get z component from CoM height and CPA
-                        zA = np.cos(cpaAs[i]*np.pi/180.) * np.abs(htsa[i])
-                        zB = np.cos(cpaBs[i]*np.pi/180.) * np.abs(htsb[i])
-                        # Non vertical component of projected radius
-                        projRA = np.sqrt(htsa[i]**2 - zA**2)
-                        projRB = np.sqrt(htsb[i]**2 - zB**2)
-                        # Separation between PoS and CME A
-                        sep1 = np.abs(lonA + 90 - outDir) % 360
-                        if sep1 > 180: sep1 = 360 - sep1
-                        sep2 = np.abs(lonA - 90 - outDir) % 360
-                        if sep2 > 180: sep2 = 360 - sep2
-                        sepA = np.min([sep1, sep2])
-                        # Separation between PoS and CME B
-                        sep1 = np.abs(lonB + 90 - outDir) % 360
-                        if sep1 > 180: sep1 = 360 - sep1
-                        sep2 = np.abs(lonB - 90 - outDir) % 360
-                        if sep2 > 180: sep2 = 360 - sep2
-                        sepB = np.min([sep1, sep2])
-                        # Unproject the equatorial component
-                        dpRA = projRA / np.cos(sepA*np.pi/180.)
-                        dpRB = projRB / np.cos(sepB*np.pi/180.)
-                        # Add back in vert components to get full R of CoM
-                        actRA = np.sqrt(dpRA**2 + zA**2)
-                        actRB = np.sqrt(dpRB**2 + zB**2)
-                        # Get latitude
-                        latA = np.arctan2(zA, np.abs(actRA)) * 180 / np.pi
-                        latB = np.arctan2(zB, np.abs(actRB)) * 180 / np.pi
+                            # Scale front distance same as CoM dist
+                            dp_hFA = hFAs[i] * actRA / htsa[i]
+                            dp_hFB = hFBs[i] * actRB / htsb[i]
                         
-                        # Scale front distance same as CoM dist
-                        dp_hFA = hFAs[i] * actRA / htsa[i]
-                        dp_hFB = hFBs[i] * actRB / htsb[i]
-                        
-                        # output is key, IDA, IDB, time, lonCME, mass
-                        # lonA, sepA, cpaA, latA, proj mA, projCOM htA, deprojCOM htA, p hFA, dp hFA, 
-                        # lonB, sepB, cpaB, latB, proj mB, projCOM htB, deprojCOM htB, p hFB, dp hFB, 
+                            # output is key, IDA, IDB, time, lonCME, mass
+                            # lonA, sepA, cpaA, latA, proj mA, projCOM htA, deprojCOM htA, p hFA, dp hFA, 
+                            # lonB, sepB, cpaB, latB, proj mB, projCOM htB, deprojCOM htB, p hFB, dp hFB, 
 
-                        outStuff = [key, myRes.CORSETidA, myRes.CORSETidB, matcht[i], '{:.2f}'.format(outDir), '{:.3f}'.format(outMass), '{:.2f}'.format(lonA), '{:.2f}'.format(sepA), '{:.2f}'.format(cpaAs[i]), '{:.2f}'.format(latA), '{:.3f}'.format(mAs[i]), '{:.3f}'.format(htsa[i]),'{:.3f}'.format(actRA),'{:.3f}'.format(hFAs[i]), '{:.3f}'.format(dp_hFA),   '{:.2f}'.format(lonB),  '{:.2f}'.format(sepB), '{:.2f}'.format(cpaBs[i]), '{:.2f}'.format(latB), '{:.3f}'.format(mBs[i]), '{:.3f}'.format(htsb[i]),'{:.3f}'.format(actRB),'{:.3f}'.format(hFBs[i]), '{:.3f}'.format(dp_hFB),]
-                        outLine = ''
-                        for thing in outStuff:
-                            outLine += thing + ' '
-                        #print (outLine)
-                        f2.write(outLine+'\n')
-               
-            #print (sd)
+                            outStuff = [key, myRes.CORSETidA, myRes.CORSETidB, matcht[i], '{:.2f}'.format(outDir), '{:.3f}'.format(outMass), '{:.2f}'.format(lonA), '{:.2f}'.format(sepA), '{:.2f}'.format(cpaAs[i]), '{:.2f}'.format(latA), '{:.3f}'.format(mAs[i]), '{:.3f}'.format(htsa[i]),'{:.3f}'.format(actRA),'{:.3f}'.format(hFAs[i]), '{:.3f}'.format(dp_hFA),   '{:.2f}'.format(lonB),  '{:.2f}'.format(sepB), '{:.2f}'.format(cpaBs[i]), '{:.2f}'.format(latB), '{:.3f}'.format(mBs[i]), '{:.3f}'.format(htsb[i]),'{:.3f}'.format(actRB),'{:.3f}'.format(hFBs[i]), '{:.3f}'.format(dp_hFB),]
+                            outLine = ''
+                            for thing in outStuff:
+                                outLine += thing + ' '
+                            #print (outLine)
+                            f2.write(outLine+'\n')
+                    else:
+                        outDir, outMassA, outMassB, outLatA, outLatB, outRA, outRB = comboFindDir([lonA, htsa[i], mAs[i], cpaAs[i]], [lonB, htsb[i], sclB*mBs[i], cpaBs[i]])
+                        outStuff = [key, myRes.CORSETidA, myRes.CORSETidB, matcht[i], '{:.2f}'.format(outDir), '{:.3f}'.format(outMassA), '{:.2f}'.format(lonA), '{:.2f}'.format(cpaAs[i]), '{:.2f}'.format(outLatA), '{:.3f}'.format(mAs[i]), '{:.3f}'.format(htsa[i]),'{:.3f}'.format(outRA),  '{:.3f}'.format(outMassB), '{:.2f}'.format(lonB),  '{:.2f}'.format(cpaBs[i]), '{:.2f}'.format(outLatB), '{:.3f}'.format(mBs[i]), '{:.3f}'.format(htsb[i]),'{:.3f}'.format(outRB)]
+                        #print (outStuff)
+                #print (sd)
     f2.close()
 
 
-runCORSETcases() # sclB = 1.19
+runCORSETcases(fancyMode=True) # sclB = 1.19
+
+#Aparam = [6.536990972964404, -3.1349589882116558, 0.92, 94.5] #20070529_090730
+#Bparam = [-3.5020973738621137, -4.013056340118309, 0.5, 84.0]
+
+#Aparam = [67.165917585287935, 4.90940409210772, 3.02, 248.0] # 20070605_030730
+#Bparam = [-3.981709828014459, 5.815735114115493, 0.57, 261.0]
+#print (findDir(Aparam[:-1], Bparam[:-1]))
+#print (comboFindDir(Aparam, Bparam))
+
 #print (findDir([85.2, -10.03, 2.8], [272.7, 9.75, 1.58]))
 #print (findDir([87.06, -7.29, 14.08], [266.26, 6.31, 8.06]))
 #print (findDir([103.91, -6.70, 8.36], [262.24, 7.18, 6.13]))
