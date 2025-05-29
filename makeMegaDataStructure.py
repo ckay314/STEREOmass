@@ -109,29 +109,29 @@ class AllRes:
             self.projCPAstdB   = None
             
 
-            # CORSET Scaled Deproj Properties
-            self.SCLdeprojTimes   = [None]
-            self.SCLdeprojMasses  = [None]
-            self.SCLdeprojHeightsA = [None]
-            self.SCLdeprojHeightsB = [None]
-            self.SCLdeprojLons    = [None]
-            self.SCLdeprojSepA    = [None]
-            self.SCLdeprojSepB    = [None]
-            self.SCLprojMassesA   = [None]
-            self.SCLprojMassesB   = [None]
-            self.SCLprojHeightsA  = [None]
-            self.SCLprojHeightsB  = [None]
-            self.SCLdeprojLatA    = [None]
-            self.SCLdeprojLatB    = [None]
-            self.SCLdepSatLonsA   = [None]
-            self.SCLdepSatLonsB   = [None]
-            self.SCLprojCPAsA     = [None]
-            self.SCLprojCPAsB     = [None]
-            self.SCLprojCPAstdA   = None
-            self.SCLprojCPAstdB   = None
+            # CORSET Deproj Properties
+            self.CdeprojTimes   = [None]
+            self.CdeprojMassesA = [None]
+            self.CdeprojMassesB = [None]
+            self.CdeprojHeightsA = [None]
+            self.CdeprojHeightsB = [None]
+            self.CdeprojLons    = [None]
+            self.CdeprojSepA    = [None]
+            self.CdeprojSepB    = [None]
+            self.CprojMassesA   = [None]
+            self.CprojMassesB   = [None]
+            self.CprojHeightsA  = [None]
+            self.CprojHeightsB  = [None]
+            self.CdeprojLatA    = [None]
+            self.CdeprojLatB    = [None]
+            self.CdepSatLonsA   = [None]
+            self.CdepSatLonsB   = [None]
+            self.CprojCPAsA     = [None]
+            self.CprojCPAsB     = [None]
+            self.CprojCPAstdA   = None
+            self.CprojCPAstdB   = None
             
-            
-            
+                      
             # GCS properties
             self.GCSnamesA     = None
             self.GCStimesA     = None
@@ -881,6 +881,83 @@ def makeThatRes():
         myRes.projCPAsA     = np.array(cpaAs)
         myRes.projCPAsB     = np.array(cpaBs)
               
+    # |------------ CORSET_deProjCombo ------------|
+    # output is key, IDA, IDB, time, lonCME [4]
+    # massA, lonA, sepA, cpaA, latA, proj mA, projCOM htA, deprojCOM htA, p hFA, dp hFA [14]
+    # massB, lonB, sepB, cpaB, latB, proj mB, projCOM htB, deprojCOM htB, p hFB, dp hFB,
+    data9 = np.genfromtxt('CORSET_deProjCombo.dat', dtype=str)
+    allKeys = data9[:,0]   
+    uniqIDs = set(allKeys)
+    uniqIDs = np.sort(np.array([a for a in uniqIDs]))
+    counter = 0
+    for key in uniqIDs:
+        counter += 1
+        myRes = res[key]
+        thisEv = np.where(allKeys == key)[0]
+        MAs, MBs,  ts, HAs, HBs, dirs = [], [], [], [], [], []
+        pMAs, pMBs, pHAs, pHBs = [], [], [], []
+        sepAs, sepBs = [], []
+        latAs, latBs = [], []
+        cpaAs, cpaBs = [], []
+        satLonAs, satLonBs = [], []
+        for idx in thisEv:
+            MAs.append(float(data9[idx,5]))
+            MBs.append(float(data9[idx,15]))
+            ts.append(data9[idx,3])
+            # Deprojected front height
+            HAs.append(data9[idx,14])
+            HBs.append(data9[idx,24])
+            # Deprojected CME lon
+            depLon = float(data9[idx,4])%360
+            dirs.append(depLon)
+            # Projected masses
+            pMAs.append(float(data9[idx,10]))
+            pMBs.append(float(data9[idx,20]))
+            # Projected front heights
+            pHAs.append(float(data9[idx,13]))
+            pHBs.append(float(data9[idx,23]))
+            # Separations (from plane of sky)
+            sepAs.append(float(data9[idx,7]))
+            sepBs.append(float(data9[idx,17]))
+            # Calculated latitudes
+            latAs.append(float(data9[idx,9]))
+            latBs.append(float(data9[idx,19]))
+            # Satellite longitude
+            aLon = (float(data9[idx,6])+360)%360
+            satLonAs.append(aLon)
+            bLon = (float(data9[idx,16])+360)%360
+            satLonBs.append(bLon)
+            # track CPA to get spreaed bc sometimes CORSET is wonky
+            cpaAs.append(float(data9[idx,8]))
+            cpaBs.append(float(data9[idx,18]))
+            #print (key, aLon, bLon, myRes.CORSETcpaMA, myRes.CORSETcpaMB)
+
+        cpaAalt = np.copy(cpaAs)
+        cpaAalt[np.where(cpaAalt > 180)] -= 360
+        cpaBalt = np.copy(cpaBs)
+        cpaBalt[np.where(cpaBalt > 180)] -= 360
+        #errA1, errA2 = np.std(cpaAs), np.std(cpaAalt)
+        myRes.CprojCPAstdA = np.min([np.std(cpaAs), np.std(cpaAalt)])
+        myRes.CprojCPAstdB = np.min([np.std(cpaBs), np.std(cpaBalt)])
+                    
+        myRes.CdeprojTimes   = np.array(ts)
+        myRes.CdeprojMassesA  = np.array(MAs)
+        myRes.CdeprojMassesB  = np.array(MBs)
+        myRes.CdeprojHeightsA = np.array(HAs)
+        myRes.CdeprojHeightsB = np.array(HBs)
+        myRes.CdeprojLons    = np.array(dirs)
+        myRes.CdeprojSepA    = np.array(sepAs)
+        myRes.CdeprojSepB    = np.array(sepBs)
+        myRes.CprojMassesA   = np.array(pMAs)
+        myRes.CprojMassesB   = np.array(pMBs)
+        myRes.CprojHeightsA  = np.array(pHAs)
+        myRes.CprojHeightsB  = np.array(pHBs)
+        myRes.CdeprojLatA    = np.array(latAs)
+        myRes.CdeprojLatB    = np.array(latBs)
+        myRes.CdepSatLonsA   = np.array(satLonAs)
+        myRes.CdepSatLonsB   = np.array(satLonBs)
+        myRes.CprojCPAsA     = np.array(cpaAs)
+        myRes.CprojCPAsB     = np.array(cpaBs)
     
 
     #for key in res.keys():

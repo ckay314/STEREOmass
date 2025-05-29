@@ -87,6 +87,16 @@ def findDir(Aparams, Bparams):
         
     if brng[1] < brng[0]: brng[1] += 360
     
+    # make sure on the same ranges
+    if brng[0] > arng[1]:
+        brng[0] -= 360 
+        brng[1] -= 360 
+    elif arng[0] > brng[1]:
+        arng[0] -= 360 
+        arng[1] -= 360 
+        
+    
+    
     lonMin = np.max([arng[0], brng[0]])    
     lonMax = np.min([arng[1], brng[1]])   
     if lonMax < lonMin:
@@ -223,6 +233,15 @@ def comboFindDir(Aparams, Bparams):
         
     if brng[1] < brng[0]: brng[1] += 360
     
+    # make sure on the same ranges
+    if brng[0] > arng[1]:
+        brng[0] -= 360 
+        brng[1] -= 360 
+    elif arng[0] > brng[1]:
+        arng[0] -= 360 
+        arng[1] -= 360 
+    
+    
     lonMin = np.max([arng[0], brng[0]])    
     lonMax = np.min([arng[1], brng[1]])   
     if lonMax < lonMin:
@@ -286,7 +305,6 @@ def comboFindDir(Aparams, Bparams):
         #print (dirs[i], massDiff[i]/sclFactors[0], rDiff[i]/sclFactors[1], latDiff[i]/sclFactors[2], sumScore)
         sumScores.append(sumScore)
     bestIdx = np.where(sumScores == np.min(sumScores))[0]
-
     # Get the direction and corrected mass
     outDir = dirs[bestIdx[0]]
     outMassA = massA[bestIdx[0]]
@@ -340,7 +358,7 @@ def runCORSETcases(yr=None, sclB=1, fancyMode=False):
             if key[:4] != yr:
                 doIt = False
         if doIt:
-            print (key)
+            #print (key)
             myRes = res[key]
             if (myRes.CCoMtimesA[0]!=None) & (myRes.CCoMtimesB[0]!=None):
                 # get matching times
@@ -436,6 +454,9 @@ def runCORSETcases(yr=None, sclB=1, fancyMode=False):
                             # Get latitude
                             latA = np.arctan2(zA, np.abs(actRA)) * 180 / np.pi
                             latB = np.arctan2(zB, np.abs(actRB)) * 180 / np.pi
+                            
+                            if np.abs(latA) == 0:
+                                print (key)
                         
                             # Scale front distance same as CoM dist
                             dp_hFA = hFAs[i] * actRA / htsa[i]
@@ -445,27 +466,67 @@ def runCORSETcases(yr=None, sclB=1, fancyMode=False):
                             # lonA, sepA, cpaA, latA, proj mA, projCOM htA, deprojCOM htA, p hFA, dp hFA, 
                             # lonB, sepB, cpaB, latB, proj mB, projCOM htB, deprojCOM htB, p hFB, dp hFB, 
 
-                            outStuff = [key, myRes.CORSETidA, myRes.CORSETidB, matcht[i], '{:.2f}'.format(outDir), '{:.3f}'.format(outMass), '{:.2f}'.format(lonA), '{:.2f}'.format(sepA), '{:.2f}'.format(cpaAs[i]), '{:.2f}'.format(latA), '{:.3f}'.format(mAs[i]), '{:.3f}'.format(htsa[i]),'{:.3f}'.format(actRA),'{:.3f}'.format(hFAs[i]), '{:.3f}'.format(dp_hFA),   '{:.2f}'.format(lonB),  '{:.2f}'.format(sepB), '{:.2f}'.format(cpaBs[i]), '{:.2f}'.format(latB), '{:.3f}'.format(mBs[i]), '{:.3f}'.format(htsb[i]),'{:.3f}'.format(actRB),'{:.3f}'.format(hFBs[i]), '{:.3f}'.format(dp_hFB),]
+                            outStuff = [key, myRes.CORSETidA, myRes.CORSETidB, matcht[i], '{:.2f}'.format(outDir), '{:.3f}'.format(outMass), '{:.2f}'.format(lonA), '{:.2f}'.format(sepA), '{:.2f}'.format(cpaAs[i]), '{:.2f}'.format(latA), '{:.3f}'.format(mAs[i]), '{:.3f}'.format(htsa[i]),'{:.3f}'.format(actRA),'{:.3f}'.format(hFAs[i]), '{:.3f}'.format(dp_hFA),   '{:.2f}'.format(lonB),  '{:.2f}'.format(sepB), '{:.2f}'.format(cpaBs[i]), '{:.2f}'.format(latB), '{:.3f}'.format(mBs[i]), '{:.3f}'.format(htsb[i]),'{:.3f}'.format(actRB),'{:.3f}'.format(hFBs[i]), '{:.3f}'.format(dp_hFB)]
                             outLine = ''
                             for thing in outStuff:
                                 outLine += thing + ' '
                             #print (outLine)
                             f2.write(outLine+'\n')
                     else:
-                        outDir, outMassA, outMassB, outLatA, outLatB, outRA, outRB = comboFindDir([lonA, htsa[i], mAs[i], cpaAs[i]], [lonB, htsb[i], sclB*mBs[i], cpaBs[i]])
-                        outStuff = [key, myRes.CORSETidA, myRes.CORSETidB, matcht[i], '{:.2f}'.format(outDir), '{:.3f}'.format(outMassA), '{:.2f}'.format(lonA), '{:.2f}'.format(cpaAs[i]), '{:.2f}'.format(outLatA), '{:.3f}'.format(mAs[i]), '{:.3f}'.format(htsa[i]),'{:.3f}'.format(outRA),  '{:.3f}'.format(outMassB), '{:.2f}'.format(lonB),  '{:.2f}'.format(cpaBs[i]), '{:.2f}'.format(outLatB), '{:.3f}'.format(mBs[i]), '{:.3f}'.format(htsb[i]),'{:.3f}'.format(outRB)]
+                        # output is key, IDA, IDB, time, lonCME, massA, lonA, sepA, cpaA, latA, proj mA, projCOM htA, deprojCOM htA, p hFA, dp hFA, 
+                        # lonB, sepB, cpaB, latB, proj mB, projCOM htB, deprojCOM htB, p hFB, dp hFB,
+                        try:
+                            outDir, outMassA, outMassB, outLatA, outLatB, outRA, outRB = comboFindDir([lonA, htsa[i], mAs[i], cpaAs[i]], [lonB, htsb[i], sclB*mBs[i], cpaBs[i]])
+                        except:
+                            outDir, outMass = None, None
+                            print ('Error in ', key)
+                        if outDir:
+                            sep1 = np.abs(lonA + 90 - outDir) % 360
+                            if sep1 > 180: sep1 = 360 - sep1
+                            sep2 = np.abs(lonA - 90 - outDir) % 360
+                            if sep2 > 180: sep2 = 360 - sep2
+                            sepA = np.min([sep1, sep2])
+                            # Separation between PoS and CME B
+                            sep1 = np.abs(lonB + 90 - outDir) % 360
+                            if sep1 > 180: sep1 = 360 - sep1
+                            sep2 = np.abs(lonB - 90 - outDir) % 360
+                            if sep2 > 180: sep2 = 360 - sep2
+                            sepB = np.min([sep1, sep2])
+                        
+                            # Scale front distance same as CoM dist
+                            dp_hFA = hFAs[i] * outRA / htsa[i]
+                            dp_hFB = hFBs[i] * outRB / htsb[i]
+                        
+                            outStuff = [key, myRes.CORSETidA, myRes.CORSETidB, matcht[i], '{:.2f}'.format(outDir), '{:.3f}'.format(outMassA), '{:.2f}'.format(lonA), '{:.2f}'.format(sepA), '{:.2f}'.format(cpaAs[i]), '{:.2f}'.format(outLatA), '{:.3f}'.format(mAs[i]), '{:.3f}'.format(htsa[i]),'{:.3f}'.format(outRA), '{:.3f}'.format(hFAs[i]), '{:.3f}'.format(dp_hFA),   '{:.3f}'.format(outMassB), '{:.2f}'.format(lonB), '{:.2f}'.format(sepB), '{:.2f}'.format(cpaBs[i]), '{:.2f}'.format(outLatB), '{:.3f}'.format(mBs[i]), '{:.3f}'.format(htsb[i]),'{:.3f}'.format(outRB), '{:.3f}'.format(hFBs[i]), '{:.3f}'.format(dp_hFB) ]
+                            outLine = ''
+                            for thing in outStuff:
+                                outLine += thing + ' '
+                            #print (outLine)
+                            f2.write(outLine+'\n')
                         #print (outStuff)
                 #print (sd)
     f2.close()
 
 
-runCORSETcases(fancyMode=True) # sclB = 1.19
+runCORSETcases() # sclB = 1.19
 
+# params are [satLon, h, mass, CPA]
 #Aparam = [6.536990972964404, -3.1349589882116558, 0.92, 94.5] #20070529_090730
 #Bparam = [-3.5020973738621137, -4.013056340118309, 0.5, 84.0]
 
-#Aparam = [67.165917585287935, 4.90940409210772, 3.02, 248.0] # 20070605_030730
+#Aparam = [7.165917585287935, 4.90940409210772, 3.02, 248.0] # 20070605_030730
 #Bparam = [-3.981709828014459, 5.815735114115493, 0.57, 261.0]
+
+#Aparam = [57.389999999999986, 3.934, 1.38, 270.0]
+#Bparam = [309.75, 7.089, 0.92, 254.5]
+
+
+#20140701_123900 2806.0167_0A 2806.0167_1B 20140701_162400 362.22 30.301 162.17 69.95 270.00 -0.00 6.620 -5.916 17.256 0.000 -0.000 -163.29 75.51 348.00 37.32 3.650 7.715 9.900 13.582 17.429 
+
+#Aparam = [162.17, 3.717, 0.91, 25.0]
+#Bparam = [196.71, 3.913, 0.73, 323.5]
+
+
 #print (findDir(Aparam[:-1], Bparam[:-1]))
 #print (comboFindDir(Aparam, Bparam))
 
