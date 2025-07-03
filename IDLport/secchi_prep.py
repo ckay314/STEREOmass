@@ -1,8 +1,6 @@
 import numpy as np
 import sunpy.map
 import sys
-import astropy.units as u
-from astropy.wcs import WCS
 from scc_funs import scc_make_array, scc_zelensky_array
 from cor_prep import cor_prep
 from astropy.io import fits
@@ -15,6 +13,7 @@ slogger = logging.getLogger('sunpy')
 slogger.setLevel(logging.ERROR)
 alogger = logging.getLogger('astropy')
 alogger.setLevel(logging.ERROR)
+np.seterr(divide='ignore')
 
 
 def secchi_prep(filesIn, outSize=None, silent=False):
@@ -58,6 +57,8 @@ def secchi_prep(filesIn, outSize=None, silent=False):
     # |------------- Loop to process each image -------------|
     # |------------------------------------------------------|
     num = len(filesIn)
+    images_out = []
+    headers_out = []
     
     for i in range(num):
         
@@ -116,7 +117,7 @@ def secchi_prep(filesIn, outSize=None, silent=False):
                     print ('Need to check cor prep for cor1')
                     print (Quit)
                 elif det == 'COR2':
-                    cor_prep(im, hdr)
+                    im, hdr = cor_prep(im, hdr)
                     # No polarization for now
                 elif det == 'HI1':
                     print ('HI Prep not yet ported')
@@ -124,9 +125,18 @@ def secchi_prep(filesIn, outSize=None, silent=False):
                 elif det == 'HI2':
                     print ('HI Prep not yet ported')
                     print (Quit)
+                    
+                    
+                # IP summing already done it seems
+                
+                # Return the things
+                images_out.append(im)
+                headers_out.append(hdr)
+    return images_out, headers_out
+                
     
     
 fileA = '/Users/kaycd1/wombat/fits/20241028_002330_d4c2A.fts'
 fileB = '/Users/kaycd1/wombat/fits/20241028_125330_d4c2A.fts'
-secchi_prep([fileA, fileB])
+ims, hdrs = secchi_prep([fileA, fileB])
     

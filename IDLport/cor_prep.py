@@ -302,6 +302,47 @@ def get_calfac(hdr):
         hdr['history'] = 'get_calfac Applied factor of 2 for total brightness'
     return calfac    
 
+def interp2d(xgrid, ygrid, gridvals, x_in, y_in):
+    # Inspired by interp2d from the googles/aneeshnaik
+    isScalar = False
+    if not isinstance(x_in, (list, np.ndarray)):
+        isScalar = True
+        x_in = np.array([x_in])
+        y_in = np.array([y_in])
+    
+    # Assume xgrid/ygrid are evenly spaced
+    nx, ny = len(xgrid), len(ygrid)
+    dx, dy = xgrid[1] - xgrid[0], ygrid[1] - ygrid[0]
+    
+    # Set any points beyond the boundary to the boundary
+    x_in[x_in < xgrid[0]] = xgrid[0]
+    y_in[y_in < ygrid[0]] = ygrid[0]
+    x_in[x_in > xgrid[-1]] = xgrid[-1]
+    y_in[y_in > ygrid[-1]] = ygrid[-1]
+    
+    # Find neighbor indices
+    i1 = np.floor((x_in - xgrid[0])/dx).astype(int)
+    i1[i1 == (nx-1)] = nx - 2
+    i2 = i1 + 1
+    j1 = np.floor((y_in - ygrid[0])/dy).astype(int)
+    j1[j1 == (ny-1)] = ny - 2
+    j2 = j1 + 1
+    
+    # Get neighbor xy and vals
+    x1, x2 = xgrid[i1], xgrid[i2]
+    y1, y2 = ygrid[j1], ygrid[j2]
+    z11, z21, z12, z22 = gridvals[i1,j1], gridvals[i2,j1], gridvals[i1,j2], gridvals[i2,j2]
+    
+    # Interpolate
+    t11 = z11 * (x2 - x_in) * (y2 - y_in)
+    t21 = z21 * (x_in - x1) * (y2 - y_in)
+    t12 = z12 * (x2 - x_in) * (y_in - y1)
+    t22 = z22 * (x_in - x1) * (y_in - y1)
+    z = (t11 + t21 + t12 + t22) / (dx * dy)
+    
+    if isScalar:
+        z = z[0]
+    return z
 
 def warp_tri(xr,yr,xi,yi,img):
     # i/r irregular/regular
@@ -324,29 +365,12 @@ def warp_tri(xr,yr,xi,yi,img):
     xt = griddata(pointsR, xi, (grid_x, grid_y), method='linear')
     yt = griddata(pointsR, yi, (grid_x, grid_y), method='linear')
     
+    # Use our own interp func bc scipy is weirdly slow for this
+    imgOut = interp2d(np.arange(nx), np.arange(nx), np.transpose(img), xt, yt)
+    imgOut = imgOut.reshape([nx,nx]) # is match to RegularGridInterpolator
     
-    '''allPoints = []
-    imFlat    = []
-    for i in range(nx):
-        for j in range(ny):
-            allPoints.append([xt[i], yt[j]])'''
-    
-    print ('done')
-    nums = np.arange(nx)
-    fz = RegularGridInterpolator((nums, nums), img, method='linear')
-    img_out = fz([xt[1500,1000], yt[1500,1000]])
-    print (img_out)
-    print (sd)
-    # Close but not exact
-    #img = griddata(allPoints, imFlat, (xt,yt))
-    
-    # Next interp the image itself from what we that was a regular grid to actual
-    # xt/yt just calculated
-    
-    print (img_out[1500,1000])
-    print (img_out[780,2000])
-    
-    
+    return imgOut
+        
 
 def cor_calibrate(img, hdr, sebip_off=False, exptime_off=False, bias_off=False, calimg_off=False, calfac_off=False):
     # Flag that we done this in the fits header history
@@ -468,4 +492,16 @@ def cor_prep(im, hdr, calibrate_off=False, warp_off=False):
             print ('Havent implemented cor2_point yet')
             print (Quit)
         im, hdr = cor2_warp(im,hdr)
+        
+    # Skipping rotate for now
+    # Skipping color table
+    
+    # Correct for in-flight calbration Bug 232
+    if (hdr['detector'] == 'COR2'):
+        hdr['CDELT1'] = 14.7*2**(hdr['SUMMED']-1)
+        hdr['CDELT2'] = 14.7*2**(hdr['SUMMED']-1)
+        
+    # No date/logo adding
+    
+    return im, hdr
            
