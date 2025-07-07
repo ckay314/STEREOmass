@@ -5,7 +5,7 @@ from astropy import wcs
 from astropy.io import fits
 from astropy.time import Time
 from astropy.coordinates import get_sun
-from scc_funs import secchi_rectify, fill_from_defhdr
+from scc_funs import secchi_rectify, fill_from_defhdr, rebinIDL
 from wcs_funs import get_Suncent, fitshead2wcs
 import datetime
 from astropy.coordinates import SkyCoord
@@ -48,86 +48,86 @@ def scc_sebip(img, hdr):
     # on the fly below
     flag = False
 
+    seb_ip = np.array(seb_ip)
     if '  1' in seb_ip:
-        count = np.where(seb_ip == '  1')[0]
+        count = len(np.where(seb_ip == '  1')[0])
         if hdr['DIV2CORR']: 
             count = count  - 1
-        im = im * 2 ** count
+        im = im * (2 ** count)
         hdr['history'] = 'seb_ip Corrected for Divide by 2 x '+str(count)
         flag = True
         
     if '  2' in seb_ip:
-        count = np.where(seb_ip == '  2')[0]
+        count = len(np.where(seb_ip == '  2')[0])
         im = im**(2**count)
         hdr['history'] = 'seb_ip Corrected for Square Root x '+str(count)
         flag = True
         
     if (' 16' in seb_ip) or (' 17' in seb_ip):
-        count = np.where(seb_ip == ' 16')[0] + np.where(seb_ip == ' 17')[0]
+        count = len(np.where(seb_ip == ' 16')[0]) + len(np.where(seb_ip == ' 17')[0])
         im = im * (64**count)
         hdr['history'] = 'seb_ip Corrected for HI?SPW Divide by 64 x '+str(count)
         flag = True
 
     if ' 50' in seb_ip:
-        count = np.where(seb_ip == ' 50')[0]
+        count = len(np.where(seb_ip == ' 50')[0])
         im = im * (4**count)
         hdr['history'] = 'seb_ip Corrected for for Divide by 4 x '+str(count)
         flag = True
         
     if ' 53' in seb_ip:
-        count = np.where(seb_ip == ' 53')[0]
+        count = len(np.where(seb_ip == ' 53')[0])
         im = im * (4**count)
         hdr['history'] = 'seb_ip Corrected for for Divide by 4 x '+str(count)
         flag = True
         
     if ' 82' in seb_ip:
-        count = np.where(seb_ip == ' 82')[0]
+        count = len(np.where(seb_ip == ' 82')[0])
         im = im * (2**count)
         hdr['history'] = 'seb_ip Corrected for Divide by 2 x '+str(count)
         flag = True
 
     if ' 83' in seb_ip:
-        count = np.where(seb_ip == ' 83')[0]
+        count = len(np.where(seb_ip == ' 83')[0])
         im = im * (4**count)
         hdr['history'] = 'seb_ip Corrected for for Divide by 4 x '+str(count)
         flag = True
 
     if ' 84' in seb_ip:
-        count = np.where(seb_ip == ' 84')[0]
+        count = len(np.where(seb_ip == ' 84')[0])
         im = im * (8**count)
         hdr['history'] = 'seb_ip Corrected for for Divide by 8 x '+str(count)
         flag = True
 
     if ' 85' in seb_ip:
-        count = np.where(seb_ip == ' 85')[0]
+        count = len(np.where(seb_ip == ' 85')[0])
         im = im * (16**count)
         hdr['history'] = 'seb_ip Corrected for for Divide by 16 x '+str(count)
         flag = True
 
     if ' 86' in seb_ip:
-        count = np.where(seb_ip == ' 86')[0]
+        count = len(np.where(seb_ip == ' 86')[0])
         im = im * (32**count)
         hdr['history'] = 'seb_ip Corrected for for Divide by 32 x '+str(count)
         flag = True
 
     if ' 87' in seb_ip:
-        count = np.where(seb_ip == ' 87')[0]
+        count = len(np.where(seb_ip == ' 87')[0])
         im = im * (64**count)
         hdr['history'] = 'seb_ip Corrected for for Divide by 64 x '+str(count)
         flag = True
 
     if ' 88' in seb_ip:
-        count = np.where(seb_ip == ' 88')[0]
+        count = len(np.where(seb_ip == ' 88')[0])
         im = im * (128**count)
         hdr['history'] = 'seb_ip Corrected for for Divide by 128 x '+str(count)
         flag = True
 
     if '118' in seb_ip:
-        count = np.where(seb_ip == '118')[0]
+        count = len(np.where(seb_ip == '118')[0])
         im = im * (3**count)
         hdr['history'] = 'seb_ip Corrected for for Divide by 3 x '+str(count)
         flag = True
-           
     return im, hdr, flag
         
 
@@ -144,7 +144,9 @@ def get_calimg(hdr, calimg_filename=None):
     det = hdr['DETECTOR']
     if det == 'COR1':
         cal_version = '20090723_flatfd'
-        tail = '_fCc1'+strupcase(strmid(hdr[0].OBSRVTRY,7,1))+'.fts'
+        obs = hdr['OBSRVTRY']
+        obsLet = obs[7].upper()
+        tail = '_fCc1'+obsLet+'.fts'
     elif det == 'COR2':
         obs = hdr['OBSRVTRY']
         if obs == 'STEREO_A':
@@ -235,10 +237,9 @@ def get_calimg(hdr, calimg_filename=None):
         ssum = 2**(hdr['summed']-1)
      
     # Rebin if cal isn't same shape as source im. TBD!!!    
-    #s = cal.shape
+    s = cal.shape
     if ssum != 1:
-        print('Havent implemented rebin in cor_prep yet')
-        print (Quit)
+        cal = rebinIDL(cal, np.array([int(s[0]/ssum), int(s[1]/ssum)]))
     
     # Add in returning filename?
     
@@ -417,7 +418,57 @@ def cor_calibrate(img, hdr, sebip_off=False, exptime_off=False, bias_off=False, 
     img[np.where(calimg == 0)] = 0.
         
     return img, hdr
+
+
+def cor1_calibrate(img, hdr, sebip_off=False, exptime_off=False, bias_off=False, calimg_off=False, calfac_off=False):  
+    # Flag that we done this in the fits header history
+    newStuff = 'Applied python port of cor_calibrate.pro CK 2025'
+    hdr['history'] = newStuff
     
+    # assuming no missing
+    
+    # Correct of SEB IP
+    if not sebip_off:
+        img, hdr, sebipFlag = scc_sebip(img, hdr)
+            
+    # Check exposure time (aka convert to DN/S)
+    if exptime_off:
+        exptime = 1.
+    else:
+        exptime = float(hdr['exptime'])
+        if exptime != 1.:
+            hdr['history'] = 'Exposure Normalized to 1 Second from ' + str(exptime)
+        # don't actually do anything with it yet
+        
+    # Bias subtraction
+    if bias_off:
+        biasmean = 0.
+    else:
+        biasmean = float(hdr['biasmean'])
+        if biasmean != 0.:
+            hdr['history'] = 'Bias subtracted '+ str(biasmean)
+            hdr['OFFSETCR'] = biasmean
+    
+    # Correct for flat field and vignetting
+    if calimg_off:
+        calimg = 1.0
+    else:
+        calimg, hdr = get_calimg(hdr)
+        hdr['history'] = 'Applied vignetting '
+        
+    # Background subtraction (to do)    
+    
+    # Cal fac
+    
+    # Apply...
+        
+        
+    print(calimg[69,420])
+    
+        
+        
+    print (img[69, 420])
+      
 
 def cor2_warp(im,hdr):
     # Establish control poitns x and y at every 32 pixels
@@ -473,8 +524,7 @@ def cor_prep(im, hdr, calibrate_off=False, warp_off=False):
     # Calibration
     if not calibrate_off:
         if hdr['detector'] == 'COR1':
-            print ('Havent ported COR1 calibration code')
-            print (Quit)
+            im, hdr = cor1_calibrate(im, hdr)
         else:
             im, hdr = cor_calibrate(im, hdr)
             

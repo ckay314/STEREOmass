@@ -2,6 +2,7 @@ from astropy.io import fits
 import numpy as np
 import datetime
 from astropy import wcs
+import sys
 
 def def_secchi_hdr():
     hdr = {}
@@ -508,3 +509,9 @@ def scc_sun_center(hdr):
     scen = wcs_get_pixel(my_wcs, [0,0])
     
     return suncen
+    
+def rebinIDL(arr, new_shape):
+    factors = arr.shape // new_shape
+    outarr = arr.reshape(new_shape[0], factors[0], new_shape[0], factors[0]).mean(3).mean(1)
+    return outarr
+    

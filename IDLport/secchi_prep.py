@@ -66,72 +66,72 @@ def secchi_prep(filesIn, outSize=None, silent=False):
         if not silent:
             print ('Processing image '+ str(i+1) +' out of ' + str(num))
             
-            # im = SCCREADFITS(filenames[i],hdr,silent=silent,header=str_hdr)
-            # Going to attempt using astropy fits instead of full port, tbd on success
-            with fits.open(filesIn[i]) as hdulist:
-                im  = hdulist[0].data
-                hdr = hdulist[0].header
+        # im = SCCREADFITS(filenames[i],hdr,silent=silent,header=str_hdr)
+        # Going to attempt using astropy fits instead of full port, tbd on success
+        with fits.open(filesIn[i]) as hdulist:
+            im  = hdulist[0].data.astype(np.int64)
+            hdr = hdulist[0].header
                 
-                # Random cases that have been ported but not tested
-                if hdr['calfac'] == 0.:
-                     hdr['calfac'] = 1.
-                if not hdr['rectify']:
-                    hdr['r1col']=hdr['p1col']
-                    hdr['r2col']=hdr['p2col']
-                    hdr['r1row']=hdr['p1row']
-                    hdr['r2row']=hdr['p2row']
-                # Not including keyword rectify for now
+        # Random cases that have been ported but not tested
+        if 'calfac' in hdr: #COR2B test case doesn't have       
+            if hdr['calfac'] == 0.:
+                hdr['calfac'] = 1.
+        if not hdr['rectify']:
+            hdr['r1col']=hdr['p1col']
+            hdr['r2col']=hdr['p2col']
+            hdr['r1row']=hdr['p1row']
+            hdr['r2row']=hdr['p2row']
+        # Not including keyword rectify for now
                 
-                # Skipping pre commissioning since we don't seem to hit (383 - 404)
+        # Skipping pre commissioning since we don't seem to hit (383 - 404)
+            
+        # Not hitting trimming (405 - 408)
                 
-                # Not hitting trimming (405 - 408)
+        # Rescale image to fit output size
+        #im = SCC_PUTIN_ARRAY(im,hdr,outout,_extra=ex)
+        im = scc_zelensky_array(im, hdr, outout, out)
+            
+        # Not appliying discri_pobk (413-425)
                 
-                # Rescale image to fit output size
-                #im = SCC_PUTIN_ARRAY(im,hdr,outout,_extra=ex)
-                im = scc_zelensky_array(im, hdr, outout, out)
-                
-                # Not appliying discri_pobk (413-425)
-                
-                # Check if level 1 image
-                let = hdr['filename'][16]
-                encoded_bytes = let.encode(encoding='utf-8')
-                levelb = encoded_bytes[0]
-                if (levelb <= 57) & (levelb >= 48):
-                    print ('Calibration already applied')
-                    ex['calibrate_off'] = True
-                    ex['calfac_off'] = True
-                else:
-                    ex['calibrate_off'] = False
-                    ex['calfac_off'] = False
+        # Check if level 1 image
+        let = hdr['filename'][16]
+        encoded_bytes = let.encode(encoding='utf-8')
+        levelb = encoded_bytes[0]
+        if (levelb <= 57) & (levelb >= 48):
+            print ('Calibration already applied')
+            ex['calibrate_off'] = True
+            ex['calfac_off'] = True
+        else:
+            ex['calibrate_off'] = False
+            ex['calfac_off'] = False
                     
                 
-                # |------------------------------------------------------|
-                # |----------------- Begin Calibration ------------------|
-                # |------------------------------------------------------|
-                det = hdr['DETECTOR']
+        # |------------------------------------------------------|
+        # |----------------- Begin Calibration ------------------|
+        # |------------------------------------------------------|
+        det = hdr['DETECTOR']
                 
-                if det == 'EUVI':
-                    print ('EUVI Prep not yet ported')
-                    print (Quit)
-                elif det == 'COR1':
-                    print ('Need to check cor prep for cor1')
-                    print (Quit)
-                elif det == 'COR2':
-                    im, hdr = cor_prep(im, hdr)
-                    # No polarization for now
-                elif det == 'HI1':
-                    print ('HI Prep not yet ported')
-                    print (Quit)
-                elif det == 'HI2':
-                    print ('HI Prep not yet ported')
-                    print (Quit)
+        if det == 'EUVI':
+            print ('EUVI Prep not yet ported')
+            print (Quit)
+        elif det == 'COR1':
+            im, hdr = cor_prep(im, hdr)
+        elif det == 'COR2':
+            im, hdr = cor_prep(im, hdr)
+            # No polarization for now
+        elif det == 'HI1':
+            print ('HI Prep not yet ported')
+            print (Quit)
+        elif det == 'HI2':
+            print ('HI Prep not yet ported')
+            print (Quit)
                     
                     
-                # IP summing already done it seems
+        # IP summing already done it seems
                 
-                # Return the things
-                images_out.append(im)
-                headers_out.append(hdr)
+        # Return the things
+        images_out.append(im)
+        headers_out.append(hdr)
     return images_out, headers_out
                 
     

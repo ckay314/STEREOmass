@@ -92,6 +92,7 @@ def calcCMEmass(img, hdr, box=None, onlyNe=False, doPB=False):
     sunc =  get_Suncent(wcs)
     coord = [sunc[0], sunc[1], hdr['crota']*dtor, hdr['rsun']/hdr['cdelt1']]
     
+    # Get the distance factor over the full grid so we can use that in eltheory
     dist = wcs_get_coord(wcs) #[2,naxis,naxis] with axis having usual swap from idl
     
     if hdr['cunit1'] == 'deg':
@@ -145,13 +146,23 @@ def calcCMEmass(img, hdr, box=None, onlyNe=False, doPB=False):
     return mass, hdr
     
 
+# COR2A test files
+#fileA = '/Users/kaycd1/wombat/fits/testing/COR2A_20241028_002330_d4c2A.fts'
+#fileB = '/Users/kaycd1/wombat/fits/testing/COR2A_20241028_125330_d4c2A.fts'
 
-fileA = '/Users/kaycd1/wombat/fits/20241028_002330_d4c2A.fts'
-fileB = '/Users/kaycd1/wombat/fits/20241028_125330_d4c2A.fts'
+# COR2B 
+#fileA = '/Users/kaycd1/wombat/fits/testing/COR2B_20120712_162400_d4c2B.fts'
+#fileB = '/Users/kaycd1/wombat/fits/testing/COR2B_20120712_185400_d4c2B.fts'
+
+#COR1A
+fileA = '/Users/kaycd1/wombat/fits/testing/COR1A_20121231_001000_n4c1A.fts'
+fileB = '/Users/kaycd1/wombat/fits/testing/COR1A_20121231_011000_n4c1A.fts'
+
 
 # Python secchi_prep appears to match IDL within 0.005% 
 ims, hdrs = secchi_prep([fileA, fileB])
 
-diff = ims[1] - ims[0]
+#diff = ims[1] - ims[0]
 
-mass, hdr = calcCMEmass(diff, hdrs[1])
+#mass, hdr = calcCMEmass(diff, hdrs[1])
+#print(mass[1696,1420])
