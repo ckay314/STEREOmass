@@ -1,0 +1,5 @@
+	sz = size(coord)
+	if sz[2] GT 6 then begin
+	print, coord[0,1345]
+	print, coord[1,88990]	
+	endif

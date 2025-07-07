@@ -2,7 +2,9 @@ import numpy as np
 import sunpy.map
 import sys
 import astropy.units as u
-from astropy.wcs import WCS
+#from astropy.wcs import WCS
+from secchi_prep import secchi_prep
+from wcs_funs import fitshead2wcs, get_Suncent, wcs_get_coord
 
 
 # Make sunpy/astropy shut up about info/warning for missing metadata
@@ -12,7 +14,63 @@ slogger = logging.getLogger('sunpy')
 slogger.setLevel(logging.ERROR)
 alogger = logging.getLogger('astropy')
 alogger.setLevel(logging.ERROR)
-def calcCMEmass(img, hdr, box=None):
+
+dtor = np.pi / 180.
+
+def elTheory(Rin,theta,limb=0.63,center=False, returnAll=False):
+    # units are in solar radii and degrees (based on IDL)
+    radeg = 180. / np.pi
+    # Port of SSWIDL code
+    # 0.63 is default for limb darkening
+    u = limb
+    
+    #const = sigma * pi / 2
+    #where sigma is the scattering cross section (7.95e-26 per steradian)
+    const = 1.24878e-25
+    if not center:
+        const = const/(1-u/3) # convert to mean solar brightness
+    
+    # make sure theta is less than 90 deg
+    #if theta >= 90:
+    #    print ('PoS angle greater than 90, exiting elTheory without running')
+    #    return None,  None,  None,  None,  None
+    
+    R = Rin/np.cos(theta/radeg)
+    sinchi2 = (Rin/R)**2	# angle between sun center, electron, observer
+    s = 1./R
+    #if s >= 1:
+    #    print ('Error in computing s, exiting elTheory without running')
+    #    return None,  None,  None,  None,  None
+    s2 = s**2
+    c2 = (1.-s2)
+    #if c2 < 0:
+    #    print ('Error in computing c2, exiting elTheory without running')
+    #    return None,  None,  None,  None,  None	
+    c = np.sqrt(c2)			# cos(omega)
+    g = c2*(np.log((1.+s)/c))/s
+    
+    #  Compute Van de Hulst Coefficients
+    #  Expressions are given in Billings (1968) after Minnaert (1930)
+    ael = c*s2
+    cel = (4.-c*(3.+c2))/3.
+    bel = -(1.-3.*s2-g*(1.+3.*s2))/8.
+    del0 = (5.+s2-g*(5.-s2))/8.
+    
+    #  Compute electron brightness
+    #  pB is polarized brightness (Bt-Br)
+    Bt = const*( cel + u*(del0-cel) )
+    pB = const* sinchi2 *( (ael + u*(bel-ael) ) )
+    Br = Bt-pB
+    B = Bt+Br
+    Pol = pB/B
+    
+    if returnAll:
+        return R,B,Bt,Br,Pol
+    else:
+        return R,B
+
+
+def calcCMEmass(img, hdr, box=None, onlyNe=False, doPB=False):
     # Port of scc_calc_cme_mass from IDL
     # Inputs
     # img = 2d difference image (containing the CME). units should be mean solar brightness
@@ -27,176 +85,73 @@ def calcCMEmass(img, hdr, box=None):
     # |---------------------------------------|
     # |------ Set up the distance array ------|
     # |---------------------------------------|
-    wcs = WCS(hdr)
+    # First part a little different order than IDL but we have code to 
+    # get sunc from wcs already
+    wcs = fitshead2wcs(hdr) # not system = A here it seems
     
-    # IDL uses the crpix a values and they seem to not exist in this
-    # version of wcs so pass directly
-    crpix = [hdr['crpix1a'], hdr['crpix2a']]
-    # IDL seems to use non A versions for this
-    cunits = [hdr['CUNIT1'], hdr['CUNIT2']]
-    for key in hdr.keys():
-        if 'PC' in key:
-            print (key, hdr[key])
-    dist = wcs_get_coord(wcs, crpix, cunits)
-     
+    sunc =  get_Suncent(wcs)
+    coord = [sunc[0], sunc[1], hdr['crota']*dtor, hdr['rsun']/hdr['cdelt1']]
+    
+    dist = wcs_get_coord(wcs) #[2,naxis,naxis] with axis having usual swap from idl
+    
+    if hdr['cunit1'] == 'deg':
+        dist = dist * 3600.
+    
+    dist = np.sqrt(dist[0,:,:]**2 + dist[1,:,:]**2) / hdr['rsun']
+         
     
     # |---------------------------------------|
     # |----------- Apply el Theory -----------|
     # |---------------------------------------|
+    # Assume no pos keyword or cmelonlat for now (1-6-126)
+    pos_angle = 0.
+    if not doPB:
+        R,B = elTheory(dist,0)
+    else:
+        R,B,Bt,Br,Pol = elTheory(dist,0, returnAll=True)
+    B[np.where(B == 0)] = 1
+    
     
     
     # |---------------------------------------|
     # |--------- Various Conversions ---------|
     # |---------------------------------------|
-    
-    return
-    
-def wcs_get_coord(wcs, crpix, cunits):
-    # Skipping the distortion part that doesn't get called
-    
-    # Calculate the 'indicies for each dimension, relative to the ref pixel'  
-    naxis = wcs.naxis
-    # Assuming we aren't getting the 'PIXEL-LIST' option
-    
-    # startiing at IDL line 195
-    naxis1 = wcs.array_shape[0]
-    naxis2 = wcs.array_shape[1]
-    num_elements = naxis1 * naxis2
-    index = np.arange(num_elements).astype(int)
-    coord = np.empty([naxis, num_elements])
-    #nn = 1
-    #for i in range(2):
-    #    coord[i,:] = (index / nn) % wcs.array_shape[i]
-    #    nn = nn * wcs.array_shape[i]
-    coord[0,:] = index  % naxis1
-    coord[1,:] = (index / naxis1 % naxis2)
-    
-    
-    # Skipping apply_dist and jumping to 216
-    coord[0,:] = coord[0,:] - (crpix[0] -1)
-    coord[1,:] = coord[1,:] - (crpix[1] -1)
-    # coord matches at this point, chnages at 263
-    # -> # wcs.pc is an operation, not a comment in IDL!
-    print (coord[:,0])
-    coord = np.matmul(wcs.wcs.pc, coord)
-    print (wcs.wcs.pc)
-    print (coord[0,0])
-    print (sd)
-    # Skipping associate and pixel list stuff, down to 356, expect case of TAN
-    # Contents of wcs_proj_tan
-    halfpi = np.pi / 2.
-    cx = np.pi / 180.
-    if cunits[0] == 'arcsec':
-        cx = cx / 3600.
-    # add other cases?
-    
-    cy = np.pi / 180.
-    if cunits[1] == 'arcsec':
-        cy = cy / 3600.
-    
-    # Assuming not helioprojective radial so going to 93
-    xmin = np.min(coord[0,:])
-    print (coord[0,:])
-    
-
-def reclip(aMap, OGmap):
-    myCent = [aMap.reference_pixel.x.to_value(), aMap.reference_pixel.y.to_value()]
-    OGdim = OGmap.dimensions
-    OGx = OGdim.x.to_value()
-    OGy = OGdim.y.to_value()
-    hwx = OGx / 2 
-    hwy = OGy / 2
-    myData = aMap.data
-    ix1, ix2 = int(myCent[0] - hwx), int(myCent[0] + hwx)
-    iy1, iy2 = int(myCent[1] - hwy), int(myCent[1] + hwy)
-    reclipData = myData[iy1:iy2, ix1:ix2]
-    # Sunpy submap routine only changes crpix/naxis so following that
-    aMap.meta['crpix1'] = (aMap.meta['crpix1'] - ix1) 
-    aMap.meta['crpix2'] = (aMap.meta['crpix2'] - iy1) 
-    aMap.meta['naxis1']  = OGmap.meta['naxis1']
-    aMap.meta['naxis2']  = OGmap.meta['naxis2']
-    # IF have issues try updating map (bottom_left_coord, dimensions, reference_pixel, top_right_coord)
-    # or meta (crval, crota/pc_matrix, crvalA, crpixA, xcen, ycen, pcA )
-    reclipMap = sunpy.map.Map(reclipData, aMap.meta)
-    return reclipMap
- 
-def getDiff(aPair):
-    my_map1 = sunpy.map.Map(aPair[0])
-    my_map2 = sunpy.map.Map(aPair[1])
-    
-    print (my_map1.fits_header['PC1_1A'])
-    print (my_map2.fits_header['PC1_1A'])
-    
-    if my_map1.dimensions != my_map2.dimensions:
-        sys.exit('Dimension mismatch between image and base for '+ aPair[0] + ' and ' + aPair[1])
-    
-    flData = my_map1.data.astype(np.float32)
-        
-    my_map1F = sunpy.map.Map(flData, my_map1.meta)
-    if 'crota' in my_map1.meta:
-        crota = my_map1.meta['crota']
-    elif 'crota1' in my_map1.meta:
-        crota = my_map1.meta['crota1']
+    # A good portion of IDL seems to be commented out so ignoring that
+    solar_radius = hdr['rsun']
+    cm_per_arcsec = 6.96e10 / solar_radius
+    if hdr['cunit1'] == 'deg':
+        cm2_per_pixel= (cm_per_arcsec * hdr['cdelt1']*3600.)**2
     else:
-        crota = 0
-     
-    if np.abs(crota) > 0.001: 
-        # Rotation occurs about crpix (ref pix) which is neither the Sun nor image center
-        # After rot sun is centered at crpix-crval/cdelt in fits units (index from 1)
-        # and exact match to various sunpy methods of obtaining (accounting for index from 0)
-        # If recenter then crpix is in image center (w/indexing diff)
-        my_map1FR = my_map1F.rotate(angle=crota*u.deg, missing=0, recenter=True) 
-        
-        # Not passing an angle to rotate is equiv to rot by angle =crota*u.deg
-
-        # Check the dimensions bc rotation changes it
-        if (my_map1.dimensions[0] != my_map1FR.dimensions[0]) or (my_map1.dimensions[1] != my_map1FR.dimensions[1]):
-            my_map1FR = reclip(my_map1FR, my_map1)
+        cm2_per_pixel = (cm_per_arcsec * hdr['cdelt1'])**2
+    
+    # Electron density or mass? 
+    if onlyNe:
+        conv = cm2_per_pixel
     else:
-        my_map1FR = my_map1F
+        conv = cm2_per_pixel * 1.974e-24 # why is this ne2mass separate function in IDL...
+    
+    if doPB:    
+        mass = img / (Bt - Br)
+    else:
+        mass = img / B
+    
+    mass = conv * mass     
+    
+    # Not doing ROI here
+    
+    # add a tag into header
+    hdr['history'] = 'Converted to mass units using calcCMEmass.py'
+    
+    return mass, hdr
     
 
-    flData2 = my_map2.data.astype(np.float32)
-
-    if 'crota' in my_map2.meta:
-        crota2 = my_map2.meta['crota']
-    elif 'crota1' in my_map2.meta:
-        crota2 = my_map2.meta['crota1']
-    else:
-        crota2 = 0
-    my_map2F = sunpy.map.Map(flData2, my_map2.meta)
-    if np.abs(crota2) > 0.001: 
-        my_map2FR = my_map2F.rotate(angle=crota2*u.deg, missing=0, recenter=True)
-        if (my_map2.dimensions[0] != my_map2FR.dimensions[0]) or (my_map2.dimensions[1] != my_map2FR.dimensions[1]):
-           my_map2FR = reclip(my_map2FR, my_map2)
-    else:
-        my_map2FR = my_map2F
-    
-    # check if HI and histogram equalize if so
-    if 'HI' in my_map2.meta['detector']:
-        
-        temp = exposure.equalize_hist(my_map2FR.data - my_map1FR.data)
-        rd = sunpy.map.Map(temp, my_map2FR.meta)
-       
-       
-        #fig = plt.figure
-        #plt.imshow(temp)
-        #plt.show()
-        
-    else:
-        rd = sunpy.map.Map(my_map2FR - my_map1FR.quantity)
-    
-
-    return rd
-
-def secchi_prep(fileIn):
-    #Port of the most base COR2 version of secchi prep
-    print ('secchi preped')  
 
 fileA = '/Users/kaycd1/wombat/fits/20241028_002330_d4c2A.fts'
 fileB = '/Users/kaycd1/wombat/fits/20241028_125330_d4c2A.fts'
 
+# Python secchi_prep appears to match IDL within 0.005% 
+ims, hdrs = secchi_prep([fileA, fileB])
 
+diff = ims[1] - ims[0]
 
-#diff = getDiff([fileA, fileB])  
-#calcCMEmass(diff, diff.fits_header)
+mass, hdr = calcCMEmass(diff, hdrs[1])

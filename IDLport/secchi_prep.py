@@ -136,7 +136,7 @@ def secchi_prep(filesIn, outSize=None, silent=False):
                 
     
     
-fileA = '/Users/kaycd1/wombat/fits/20241028_002330_d4c2A.fts'
-fileB = '/Users/kaycd1/wombat/fits/20241028_125330_d4c2A.fts'
-ims, hdrs = secchi_prep([fileA, fileB])
+#fileA = '/Users/kaycd1/wombat/fits/20241028_002330_d4c2A.fts'
+#fileB = '/Users/kaycd1/wombat/fits/20241028_125330_d4c2A.fts'
+#ims, hdrs = secchi_prep([fileA, fileB])
     
