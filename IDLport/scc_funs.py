@@ -1,8 +1,15 @@
 from astropy.io import fits
 import numpy as np
 import datetime
+import platform
 from astropy import wcs
-import sys
+import sys, os
+
+# Hardcoded secchi backgrounds here  for now
+global secchi_bkg
+secchi_bkg = '/Volumes/SRP/vourla1/sswdb/stereo/secchi/backgrounds/'
+global mjd_epoch
+mjd_epoch = datetime.datetime(1858, 11, 17, 0, 0, 0)
 
 def def_secchi_hdr():
     hdr = {}
@@ -514,4 +521,251 @@ def rebinIDL(arr, new_shape):
     factors = arr.shape // new_shape
     outarr = arr.reshape(new_shape[0], factors[0], new_shape[0], factors[0]).mean(3).mean(1)
     return outarr
+    
+def scc_getbkgimg(hdr, doRot=False):
+    # Assume no interp for now
+    
+    # port of get_delim, untested on windows
+    myos = platform.system()
+    if myos == 'Windows':
+        delim = '\\'
+    else:
+        delim = '/'
+        
+    # Assume proper header
+    
+    tel = hdr['DETECTOR'].upper().strip()
+    if tel == 'EUVI':
+        cam = 'eu'
+    else:
+        cam = tel[0].lower()+tel[-1]
+    isHI = (cam == 'h1') or (cam == 'h2')
+    
+    doshift = False # is this still used? commented out below
+    
+    # Get sc name
+    tags = np.array([key for key in hdr])
+    filename = hdr['FILENAME']
+    if'OBSRVTRY' not in tags:
+        #MVI header
+        sc = filename[-4].lower()
+        print ('Not certain on pulling from MVI check below is expected for sc')
+        print (sc)
+    else:
+        sc = hdr['OBSRVTRY'][7].lower()
+
+    # Check cs name
+    if sc not in ['a', 'b']:
+        sys.exit('Error in scc_getbkgim. Invalid spacecraft name.')
+        
+    # Check processing level
+    isL1 = False
+    levchar = filename[16]
+    if (levchar ==1) or ((levchar == 0) & isHI):
+        isL1 = True
+        match = False
+
+    # Not setting up keywords raw_calroll, calroll, daily so skipping (401-413)
+    ndays = 30
+    rootdir = secchi_bkg + sc + delim + 'monthly_min' + delim
+    fchar = 'm'
+
+    # Form the polar search string
+    polstr = '_pTBr_'
+    # not using the totalb, double_totalB keys for now so skipping (423-427)
+    
+    # Get the date
+    if 'DATE-AVG' in tags:
+        dtin = hdr['DATE-AVG']
+        daTag = 'DATE-AVG'
+    elif 'DATE_AVG' in tags:
+        dtin = hdr['DATE_AVG']
+        daTag = 'DATE_AVG'
+    cal = dtin[:4]+dtin[5:7]+dtin[8:10] # should pull out YYYYMMDD for reasonable strings
+    sdir = cal[0:6]
+    sfil = cal[2:8]    
+    # assume we can do what we need with DT obj
+    avgDT = datetime.datetime.strptime(dtin, "%Y-%m-%dT%H:%M:%S.%f" )
+    mjdin = (avgDT - mjd_epoch).total_seconds()/(24*3600)
+    
+    # Check against major sc repointings
+    if sc == 'a':
+        repoint = ['2006-12-21T13:15', '2007-02-03T13:15','2015-05-19T00:00', '2023-08-12T00:00']
+        if tel == 'COR1':
+            repoint.extend(['2010-01-27T16:49', '2010-11-19T16:00', '2011-01-12T12:23', '2011-02-11T04:23', '2011-03-08T17:00', '2011-12-05T12:03', '2012-02-19T02:33', '2012-03-16T00:00', '2014-07-08T00:00', '2014-08-23T17:00', '2015-11-16T00:00', '2016-03-15T00:00', '2016-04-13T01:08', '2016-05-25T05:40', '2016-06-01T12:00', '2016-06-08T00:00', '2016-09-02T16:19', '2018-09-27T16:44', '2019-02-05T21:07', '2019-02-17T05:57', '2020-01-14T23:52', '2021-05-07T23:53', '2023-05-15T23:00'])
+        else:
+            repoint.extend(['2014-08-19T00:00'])
+        nomrollmjd = 54160
+    if sc == 'b':
+        repoint = ['2007-02-03T18:20', '2007-02-21T20:00']
+        if tel == 'COR1':
+            repoint.extend(['2009-01-30T16:20', '2010-03-24T01:17', '2011-03-11T00:00'])
+        if tel == 'COR2':
+            repoint.extend(['2010-02-23T08:12', '2011-01-27T03:47','2011-04-25T18:30'])
+        nomrollmjd = 54313
+    repoint = np.array(sorted(repoint))        
+    # add in check for no exist
+    i1 = np.where(repoint < dtin)[0]
+    i2 = np.where(repoint > dtin)[0]
+    if len(i1) > 0:
+        minDT = datetime.datetime.strptime(repoint[np.max(i1)], "%Y-%m-%dT%H:%M")
+        mjdmin = (minDT - mjd_epoch).total_seconds()/(24*3600)
+    else:
+        mjdmin = 0
+    if len(i2) > 0:        
+        maxDT = datetime.datetime.strptime(repoint[np.min(i2)], "%Y-%m-%dT%H:%M")
+        mjdmax = (maxDT - mjd_epoch).total_seconds()/(24*3600)
+    else:
+        mjdmax = 99999
+
+    pntroll = hdr['sc_roll']
+    if (mjdin > 57160) & (mjdin < 60168):
+        pntroll = hdr['crota']
+    if pntroll < 0:
+        titleangle = 360 + pntroll
+    else:
+        titleangle = pntroll
+
+    if (np.abs(pntroll) < 10) or (tel == 'COR1') or (mjdin < nomrollmjd):
+            postd = ''
+    else:
+        print ("Reached uncoded part, need to test with example")
+        print (QUit)
+    
+    if isHI:
+        roll = 0
+    
+    # Look for the correct or closest file. IDL makes this a headache
+    # This is equiv to 531-662 but ignoring interp and other stuff
+    exactFile = rootdir + sdir + delim + fchar + cam + sc.upper() + polstr + sfil + postd + '.fts'
+    if os.path.exists(exactFile):
+        bkgFile = exactFile
+    else:
+        # loop through n days before and after to find closest friend
+        dday = 0
+        while dday <= ndays:
+            dday += 1
+            plusDT = avgDT + datetime.timedelta(days=dday)
+            pstr = plusDT.strftime('%Y%m%d')  
+            psdir, psfil =  pstr[:-2], pstr[2:]
+            pPath = rootdir + psdir + delim + fchar + cam + sc.upper() + polstr + psfil + postd + '.fts'
+            hasP =  os.path.exists(pPath)
+            minusDT = avgDT + datetime.timedelta(days=-dday)
+            mstr = minusDT.strftime('%Y%m%d')  
+            msdir, msfil =  mstr[:-2], mstr[2:]
+            mPath = rootdir + msdir + delim + fchar + cam + sc.upper() + polstr + msfil + postd + '.fts'
+            hasM = os.path.exists(mPath)
+            if hasP and hasM:
+                dday = 9999
+                delP = (plusDT - avgDT).total_seconds()
+                delM = (avgDT - minusDT).total_seconds
+                if delM <= delP:
+                    bkgFile = mPath
+                else:
+                    bkgFile = pPath
+            elif hasP:
+                dday = 9999
+                bkgFile = pPath
+            elif hasM:
+                dday = 9999
+                bkgFile = mPath
+                
+            else:
+                if dday > ndays:
+                    sys.exit('Cannot fine appropriate background file')
+                    
+    # Skipping more for interp, postd, doubles 
+    
+    # Read in file, skipping 666-711
+    if isL1 and not isHI:
+        print ('Need to add secchi prep the background, not coded')
+        print (Quit) 
+    else:
+        with fits.open(bkgFile) as hdulist:
+            bim  = hdulist[0].data
+            bhdr = hdulist[0].header
+    # Skipping median keyword
+    btags = np.array([key for key in bhdr])
+    date_avg = ''
+    if 'DATE-AVG' in btags:
+        date_avg = bhdr['DATE-AVG']
+    if 'date-avg' in btags:
+        date_avg = bhdr['date-avg']
+    elif 'DATE_AVG' in btags:
+        date_avg = bhdr['DATE_AVG']
+    elif 'date_avg' in btags:
+        date_avg = bhdr['date_avg']
+    if date_avg == '':
+        if 'DATE_OBS' in btags:
+            date_avg = bhdr['DATE_OBS']
+        elif 'date_obs' in btags:
+            date_avg = bhdr['date_obs']
+        elif 'DATE-OBS' in btags:
+            date_avg = bhdr['DATE-OBS']
+        elif 'date-obs' in btags:
+            date_avg = bhdr['date-obs']
+        else:
+            sys.exit('Issue getting background image date')
+            
+    # Match image size
+    i_reduce = bhdr['naxis1'] / hdr['naxis1']
+    j_reduce = bhdr['naxis2'] / hdr['naxis2']
+        
+    if (i_reduce != 1) or (j_reduce != 1):
+        bim = rebinIDL(bIm, [hdr['naxis1'], hdr['naxis2']])
+  
+    # Copy header info for some reason (prob rebin?)
+    if not isL1:
+        bhdr['dstop1'] = hdr['dstop1']
+        bhdr['dstop2'] = hdr['dstop2']
+        bhdr['naxis1'] = hdr['naxis1']
+        bhdr['naxis2'] = hdr['naxis2']
+        bhdr['summed'] = hdr['summed']
+        bhdr['crpix1'] = hdr['crpix1']
+        bhdr['crpix2'] = hdr['crpix2']
+        bhdr['crpix1a'] = hdr['crpix1a']
+        bhdr['crpix2a'] = hdr['crpix2a']
+        bhdr['CDELT1'] = hdr['CDELT1']
+        bhdr['CDELT2'] = hdr['CDELT2']
+        bhdr['CDELT1A'] = hdr['CDELT1A']
+        bhdr['CDELT2A'] = hdr['CDELT2A']
+        
+    # Shift things for HI, ignore for now 760-786
+    maxshift = 0
+    if doshift:
+        print ('havent coded HI shifting in scc_getbkgimg')
+        print (Quit)
+        
+    # No interp skipping 791 - 854
+    
+    # skipping another shift thing 856-859
+    
+    # skipping match check 864
+    
+    # skipping header correction
+    
+    # Check for rotate correction
+    rolldif = hdr['crota'] - bhdr['crota']
+    if (np.abs(rolldif) > 1) and doRoll:
+        print ('Havent coded background roll')
+        print (Quit)
+        
+    # skipping double exposure correction
+    
+    # skipping match corrction
+    
+    # skipping HI L1 correction
+    
+    return bim, bhdr
+                        
+                
+            
+            
+            
+            
+    
+    
+    
+    
+    
     

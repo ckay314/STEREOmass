@@ -158,11 +158,16 @@ def calcCMEmass(img, hdr, box=None, onlyNe=False, doPB=False):
 fileA = '/Users/kaycd1/wombat/fits/testing/COR1A_20121231_001000_n4c1A.fts'
 fileB = '/Users/kaycd1/wombat/fits/testing/COR1A_20121231_011000_n4c1A.fts'
 
+# COR1B
+fileA = '/Users/kaycd1/wombat/fits/testing/COR1B_20111114_001000_n4c1B.fts'
+fileB = '/Users/kaycd1/wombat/fits/testing/COR1B_20111114_011000_n4c1B.fts'
+
+
 
 # Python secchi_prep appears to match IDL within 0.005% 
 ims, hdrs = secchi_prep([fileA, fileB])
 
-#diff = ims[1] - ims[0]
+diff = ims[1] - ims[0]
 
-#mass, hdr = calcCMEmass(diff, hdrs[1])
-#print(mass[1696,1420])
+mass, hdr = calcCMEmass(diff, hdrs[1])
+print(mass[96,420])

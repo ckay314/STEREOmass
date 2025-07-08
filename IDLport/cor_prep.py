@@ -5,7 +5,7 @@ from astropy import wcs
 from astropy.io import fits
 from astropy.time import Time
 from astropy.coordinates import get_sun
-from scc_funs import secchi_rectify, fill_from_defhdr, rebinIDL
+from scc_funs import secchi_rectify, fill_from_defhdr, rebinIDL, scc_getbkgimg
 from wcs_funs import get_Suncent, fitshead2wcs
 import datetime
 from astropy.coordinates import SkyCoord
@@ -265,14 +265,16 @@ def get_calfac(hdr):
     if det == 'COR1':
         if hdr['obsrvtry'] == 'STEREO_A':
             calfac = 6.578e-11
-            utc_time = Time('2007-12-01T03:41:48.174', scale='utc')
-            tai0 = utc_time.tai
+            t0 = datetime.datetime.strptime('2007-12-01T03:41:48.174', "%Y-%m-%dT%H:%M:%S.%f")
             rate = 0.00648
         if hdr['obsrvtry'] == 'STEREO_B':
             calfac = 7.080e-11
-            utc_time = Time('2008-01-17T02:20:15.717', scale='utc')
-            tai0 = utc_time.tai
+            t0 = datetime.datetime.strptime('2008-01-17T02:20:15.717', "%Y-%m-%dT%H:%M:%S.%f")
             rate = 0.00258 
+        myDT = datetime.datetime.strptime(hdr['date-avg'], "%Y-%m-%dT%H:%M:%S.%f")    
+        years = (myDT-t0).total_seconds() / (3600.*24*365.25)
+        calfac = calfac / (1-rate*years)
+        
     elif det == 'COR2':
         if hdr['obsrvtry'] == 'STEREO_A':
             calfac = 2.7e-12*0.5
@@ -285,7 +287,7 @@ def get_calfac(hdr):
     else:
         print ('Havent ported HI portions of get calfac yet')
         print (Quit)
-        
+
     hdr['calfac'] = calfac
     
     sumcount = 0
@@ -372,7 +374,6 @@ def warp_tri(xr,yr,xi,yi,img):
     
     return imgOut
         
-
 def cor_calibrate(img, hdr, sebip_off=False, exptime_off=False, bias_off=False, calimg_off=False, calfac_off=False):
     # Flag that we done this in the fits header history
     newStuff = 'Applied python port of cor_calibrate.pro CK 2025'
@@ -395,6 +396,8 @@ def cor_calibrate(img, hdr, sebip_off=False, exptime_off=False, bias_off=False, 
         biasmean = 0.
     else:
         biasmean = float(hdr['biasmean'])
+        if hdr['ipsum'] > 1:
+            biasmean = biasmean * (2** (hdr['ipsum']-1))**2
         if biasmean != 0.:
             hdr['history'] = 'Bias subtracted '+ str(biasmean)
             hdr['OFFSETCR'] = biasmean
@@ -419,8 +422,7 @@ def cor_calibrate(img, hdr, sebip_off=False, exptime_off=False, bias_off=False, 
         
     return img, hdr
 
-
-def cor1_calibrate(img, hdr, sebip_off=False, exptime_off=False, bias_off=False, calimg_off=False, calfac_off=False):  
+def cor1_calibrate(img, hdr, sebip_off=False, exptime_off=False, bias_off=False, calimg_off=False, calfac_off=False, bkgimg_off=False):  
     # Flag that we done this in the fits header history
     newStuff = 'Applied python port of cor_calibrate.pro CK 2025'
     hdr['history'] = newStuff
@@ -445,31 +447,59 @@ def cor1_calibrate(img, hdr, sebip_off=False, exptime_off=False, bias_off=False,
         biasmean = 0.
     else:
         biasmean = float(hdr['biasmean'])
+        if hdr['ipsum'] > 1:
+            biasmean = biasmean * (2** (hdr['ipsum']-1))**2
         if biasmean != 0.:
             hdr['history'] = 'Bias subtracted '+ str(biasmean)
             hdr['OFFSETCR'] = biasmean
     
     # Correct for flat field and vignetting
     if calimg_off:
-        calimg = 1.0
+        calimg = None
     else:
         calimg, hdr = get_calimg(hdr)
         hdr['history'] = 'Applied vignetting '
         
     # Background subtraction (to do)    
+    if bkgimg_off:
+        bkgimg = None
+    else:
+        bkgimg, bhdr = scc_getbkgimg(hdr)
+        if hdr['ccdsum'] != bhdr['ccdsum']:
+            bkgimg = False
+    if bkgimg is not None:
+        sumdif = hdr['ipsum'] - bhdr['ipsum']
+        if sumdif != 0:
+            bkgimg = bkgimg * (4**sumdif)
+        if exptime_off:
+            bkgimg = bkgimg * hdr['exptime']
+        hdr['history'] = 'Background subtracted'    
+            
+    # Apply photometric calibration
+    if calfac_off:
+        calfac = 1
+    else:
+        calfac = get_calfac(hdr)
+        if calfac != 1:
+            hdr['history'] = 'Applied calibration fact'
+               
+    # Apply Calibration
+    if biasmean != 0:
+        img = img - biasmean
+    if exptime != 1:
+        img = img / exptime
+    if bkgimg is not None:
+        img = img - bkgimg
+    if calimg is not None:
+        img = img / calimg
+        
+    # No cosmic correction
     
-    # Cal fac
+    if calfac !=1:
+        img = img * calfac
     
-    # Apply...
-        
-        
-    print(calimg[69,420])
+    return img, hdr
     
-        
-        
-    print (img[69, 420])
-      
-
 def cor2_warp(im,hdr):
     # Establish control poitns x and y at every 32 pixels
     gridsize = 32
