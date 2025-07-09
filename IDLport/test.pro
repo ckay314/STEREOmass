@@ -17,6 +17,21 @@ fileB = '/Users/kaycd1/wombat/fits/testing/COR1A_20121231_011000_n4c1A.fts'
 fileA = '/Users/kaycd1/wombat/fits/testing/COR1B_20111114_001000_n4c1B.fts'
 fileB = '/Users/kaycd1/wombat/fits/testing/COR1B_20111114_011000_n4c1B.fts'
 
+;HI1A
+fileA = '/Users/kaycd1/wombat/fits/testing/HI1A_20100501_000901_s4h1A.fts'
+fileB = '/Users/kaycd1/wombat/fits/testing/HI1A_20100501_164901_s4h1A.fts'
+
+;HI1B
+;fileA = '/Users/kaycd1/wombat/fits/testing/HI1B_20070801_012900_s4h1B.fts'
+;fileB = '/Users/kaycd1/wombat/fits/testing/HI1B_20070801_164900_s4h1B.fts'
+
+;HI2A
+;fileA = '/Users/kaycd1/wombat/fits/testing/HI2A_20090301_000921_s4h2A.fts'
+;fileB = '/Users/kaycd1/wombat/fits/testing/HI2A_20090301_180921_s4h2A.fts'
+
+;HI2B
+;fileA = '/Users/kaycd1/wombat/fits/testing/HI2B_20130201_000921_s4h2B.fts'
+;fileB = '/Users/kaycd1/wombat/fits/testing/HI2B_20130201_100921_s4h2B.fts'
 
 files = [fileA, fileB] 
 secchi_prep, files, headers, images  

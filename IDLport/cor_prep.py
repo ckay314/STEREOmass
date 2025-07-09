@@ -1,135 +1,20 @@
 import numpy as np
 import os
 import sys
-from astropy import wcs
 from astropy.io import fits
-from astropy.time import Time
-from astropy.coordinates import get_sun
-from scc_funs import secchi_rectify, fill_from_defhdr, rebinIDL, scc_getbkgimg
+from scc_funs import secchi_rectify, fill_from_defhdr, rebinIDL, scc_getbkgimg, scc_sebip
 from wcs_funs import get_Suncent, fitshead2wcs
 import datetime
-from astropy.coordinates import SkyCoord
-import sunpy.map
-from sunpy.map.header_helper import make_fitswcs_header
-from scipy.spatial import Delaunay
-from scipy.interpolate import griddata, RegularGridInterpolator
+from scipy.interpolate import griddata
 
 
 c = np.pi / 180.
 cunit2rad = {'arcmin': c / 60.,   'arcsec': c / 3600.,  'mas': c / 3600.e3,  'rad':  1.}
 
-
-def scc_sebip(img, hdr):
-    # Assuming everything is ok as usual
-    im = img
-    flag = 0
-
-    ip = hdr['ip_00_19']
-    # Make sure IP is 60 char long, could be as low as 58
-    # (just porting these very non python lines for now)
-    if len(ip) < 60:
-        ip = ' ' + ip
-    if len(ip) < 60:
-        ip = ' ' + ip
-    # This is a string of 20 up to 3 digit numbers. Most are 2 digits but it gets squished
-    # together during the rare 3 digit ones so have to separate. Copied IDL method (ish) but  
-    # could probably simplify   
-    ipEnc = ip.encode(encoding='utf-8')
-    byteIt = np.array([ipEnc[i] for i in range(60)]) 
-    seb_ip = [chr(byteIt[i*3])+chr(byteIt[i*3+1])+chr(byteIt[i*3+2]) for i in range(20)]
-    
-    # Trim SW images
-    x = np.where(seb_ip == '117')[0]
-    if len(x) != 0:
-        print ('Need to port this when hit proper test case (in scc_sebip)')
-        print (Quit)
-
-    # Don't need the Vin Diesel chunk (108 - 121), just check the cases for corrections
-    # on the fly below
-    flag = False
-
-    seb_ip = np.array(seb_ip)
-    if '  1' in seb_ip:
-        count = len(np.where(seb_ip == '  1')[0])
-        if hdr['DIV2CORR']: 
-            count = count  - 1
-        im = im * (2 ** count)
-        hdr['history'] = 'seb_ip Corrected for Divide by 2 x '+str(count)
-        flag = True
-        
-    if '  2' in seb_ip:
-        count = len(np.where(seb_ip == '  2')[0])
-        im = im**(2**count)
-        hdr['history'] = 'seb_ip Corrected for Square Root x '+str(count)
-        flag = True
-        
-    if (' 16' in seb_ip) or (' 17' in seb_ip):
-        count = len(np.where(seb_ip == ' 16')[0]) + len(np.where(seb_ip == ' 17')[0])
-        im = im * (64**count)
-        hdr['history'] = 'seb_ip Corrected for HI?SPW Divide by 64 x '+str(count)
-        flag = True
-
-    if ' 50' in seb_ip:
-        count = len(np.where(seb_ip == ' 50')[0])
-        im = im * (4**count)
-        hdr['history'] = 'seb_ip Corrected for for Divide by 4 x '+str(count)
-        flag = True
-        
-    if ' 53' in seb_ip:
-        count = len(np.where(seb_ip == ' 53')[0])
-        im = im * (4**count)
-        hdr['history'] = 'seb_ip Corrected for for Divide by 4 x '+str(count)
-        flag = True
-        
-    if ' 82' in seb_ip:
-        count = len(np.where(seb_ip == ' 82')[0])
-        im = im * (2**count)
-        hdr['history'] = 'seb_ip Corrected for Divide by 2 x '+str(count)
-        flag = True
-
-    if ' 83' in seb_ip:
-        count = len(np.where(seb_ip == ' 83')[0])
-        im = im * (4**count)
-        hdr['history'] = 'seb_ip Corrected for for Divide by 4 x '+str(count)
-        flag = True
-
-    if ' 84' in seb_ip:
-        count = len(np.where(seb_ip == ' 84')[0])
-        im = im * (8**count)
-        hdr['history'] = 'seb_ip Corrected for for Divide by 8 x '+str(count)
-        flag = True
-
-    if ' 85' in seb_ip:
-        count = len(np.where(seb_ip == ' 85')[0])
-        im = im * (16**count)
-        hdr['history'] = 'seb_ip Corrected for for Divide by 16 x '+str(count)
-        flag = True
-
-    if ' 86' in seb_ip:
-        count = len(np.where(seb_ip == ' 86')[0])
-        im = im * (32**count)
-        hdr['history'] = 'seb_ip Corrected for for Divide by 32 x '+str(count)
-        flag = True
-
-    if ' 87' in seb_ip:
-        count = len(np.where(seb_ip == ' 87')[0])
-        im = im * (64**count)
-        hdr['history'] = 'seb_ip Corrected for for Divide by 64 x '+str(count)
-        flag = True
-
-    if ' 88' in seb_ip:
-        count = len(np.where(seb_ip == ' 88')[0])
-        im = im * (128**count)
-        hdr['history'] = 'seb_ip Corrected for for Divide by 128 x '+str(count)
-        flag = True
-
-    if '118' in seb_ip:
-        count = len(np.where(seb_ip == '118')[0])
-        im = im * (3**count)
-        hdr['history'] = 'seb_ip Corrected for for Divide by 3 x '+str(count)
-        flag = True
-    return im, hdr, flag
-        
+# python doesn't know about IDL specific env_vars bc runs in diff env
+# so hardcode this for now (NEED TO FIX EVENTUALLY!!!!)
+global calpath
+calpath =  '/Users/kaycd1/ssw/stereo/secchi/calibration/'
 
 def get_calimg(hdr, calimg_filename=None):
     # Assuming proper header passed. Starting at 131
@@ -137,11 +22,10 @@ def get_calimg(hdr, calimg_filename=None):
     HIsum_flag = False
     
     # Create calibration image filename
-    # python doesn't know about IDL specific env_vars bc runs in diff env
-    # so hardcode this for now (NEED TO FIX EVENTUALLY!!!!)
-    path = '/Users/kaycd1/ssw/stereo/secchi/calibration/'
+    path = calpath
     
     det = hdr['DETECTOR']
+    print (det)
     if det == 'COR1':
         cal_version = '20090723_flatfd'
         obs = hdr['OBSRVTRY']
@@ -155,13 +39,13 @@ def get_calimg(hdr, calimg_filename=None):
             cal_version = '20140723_vignet'
         obsLet = obs[7].upper()
         tail = '_vCc2'+obsLet+'.fts'
-    elif 'EUVI':
+    elif det == 'EUVI':
         cal_version = '20060823_wav'
         wave = str(hdr['WAVELNTH']).strip()
         obs = hdr['OBSRVTRY']
         obsLet = obs[7].upper()
         tail = wave+'_fCeu'+obsLet+'.fts'
-    elif 'HI1':
+    elif det == 'HI1':
         obs = hdr['OBSRVTRY']
         obsLet = obs[7].upper()
         if hdr['summed'] == 1:
@@ -171,7 +55,7 @@ def get_calimg(hdr, calimg_filename=None):
             cal_version = '20100421_flatfld'    
             tail = '_sum_h1'+obsLet+'.fts'
             HIsum_flag = True
-    elif 'HI2':
+    elif det == 'HI2':
         obs = hdr['OBSRVTRY']
         obsLet = obs[7].upper()
         if hdr['summed'] == 1:
@@ -201,11 +85,10 @@ def get_calimg(hdr, calimg_filename=None):
             cal_filename = filename
         else:
             sys.exit('Cannot locate calibration image '+filename)
-            
         # Make sure the calibration header has all the keywords. Looks like
         # it's all the default values but some tags missing which breaks things
         cal_hdr = fill_from_defhdr(cal_hdr)
-     
+
     # Trim calibration image to CCD coordinates
     if cal_hdr['P1COL'] <= 1:
         if HIsum_flag:
@@ -225,6 +108,8 @@ def get_calimg(hdr, calimg_filename=None):
     # Correct calibrage image for rectification
     if (hdr['RECTIFY']) and (not cal_hdr['RECTIFY']):
         cal, cal_hdr = secchi_rectify(cal, cal_hdr)
+    print(cal[0,110])
+    
     # confirmed cal matches common block and new for COR2A at this point
     
     # Correct callibration image for rescale -> HI 
@@ -258,7 +143,6 @@ def get_calimg(hdr, calimg_filename=None):
           
     return cal, hdr
     
-
 def get_calfac(hdr):
     # Assuming passed proper header
     det = hdr['detector']
@@ -284,9 +168,37 @@ def get_calfac(hdr):
         gain = 15.
         wave = hdr['wavelnth']
         calfac = gain * (3.65 * wave) / (13.6 * 911)
+    elif det == 'HI1':
+        if hdr['OBSRVTRY'] == 'STEREO_A':
+            t0 = datetime.datetime.strptime('2011-06-27T00:00:00.000', "%Y-%m-%dT%H:%M:%S.%f")
+            myDT = datetime.datetime.strptime(hdr['date-avg'], "%Y-%m-%dT%H:%M:%S.%f") 
+            years = (myDT-t0).total_seconds() / (3600.*24*365.25)
+            if years < 0: years = 0
+            calfac = 3.453e-13 + 5.914e-16*years # Bsun/DN
+        if hdr['OBSRVTRY'] == 'STEREO_B':
+            t0 = datetime.datetime.strptime('2007-01-01T00:00:00.000', "%Y-%m-%dT%H:%M:%S.%f")
+            myDT = datetime.datetime.strptime(hdr['date-avg'], "%Y-%m-%dT%H:%M:%S.%f") 
+            years = (myDT-t0).total_seconds() / (3600.*24*365.25)
+            if years < 0: years = 0
+            calfac = 3.55e-13
+            annualchange = 0.001503
+            calfac = calfac / (1-annualchange*years)
+    elif det == 'HI2':
+        if hdr['OBSRVTRY'] == 'STEREO_A':
+            t0 = datetime.datetime.strptime('2015-01-01T00:00:00.000', "%Y-%m-%dT%H:%M:%S.%f")
+            myDT = datetime.datetime.strptime(hdr['date-avg'], "%Y-%m-%dT%H:%M:%S.%f")
+            years = (myDT-t0).total_seconds() / (3600.*24*365.25)
+            if years < 0:
+                calfac = 4.476e-14 + 5.511e-17*years
+            else:
+                calfac = 4.512e-14 + 7.107e-17*years
+        if hdr['OBSRVTRY'] == 'STEREO_B':
+            t0 = datetime.datetime.strptime('2000-12-31T00:00:00.000', "%Y-%m-%dT%H:%M:%S.%f")
+            myDT = datetime.datetime.strptime(hdr['date-avg'], "%Y-%m-%dT%H:%M:%S.%f")
+            years = (myDT-t0).total_seconds() / (3600.*24*365.25)
+            calfac = 4.293e-14 + 3.014e-17 * years                        
     else:
-        print ('Havent ported HI portions of get calfac yet')
-        print (Quit)
+        sys.exit('Unknown detected in get_calfac')
 
     hdr['calfac'] = calfac
     

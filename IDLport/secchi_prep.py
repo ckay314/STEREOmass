@@ -3,6 +3,7 @@ import sunpy.map
 import sys
 from scc_funs import scc_make_array, scc_zelensky_array
 from cor_prep import cor_prep
+from hi_prep import hi_prep
 from astropy.io import fits
 
 
@@ -32,7 +33,8 @@ def secchi_prep(filesIn, outSize=None, silent=False):
     # |------------------------------------------------------|
     # |---------- Set up the run based on keywords ----------|
     # |------------------------------------------------------|
-    # Create the keyword structure (277)
+    # Create the keyword structure (277) that is used to send keywords
+    # to the sub routines. Not really using yet bc ignoring most keywords
     ex = {}
     ex['blank'] = -1
     
@@ -50,6 +52,7 @@ def secchi_prep(filesIn, outSize=None, silent=False):
     # |------------- (no clue what that means) --------------|
     # Might have outsize keyword passed, don't have to explicitly check in Python
     # This sets up empty arrays and an empty header dict
+    # -> probably don't need this bc python doesn't allot memory like IDL
     images, headers, outout, outsize, out = scc_make_array(filesIn, outSize=None)
     ex['outsize'] = outsize
 
@@ -116,12 +119,12 @@ def secchi_prep(filesIn, outSize=None, silent=False):
             print (Quit)
         elif det == 'COR1':
             im, hdr = cor_prep(im, hdr)
+            # No polarization for now
         elif det == 'COR2':
             im, hdr = cor_prep(im, hdr)
             # No polarization for now
         elif det == 'HI1':
-            print ('HI Prep not yet ported')
-            print (Quit)
+            im, hdr = hi_prep(im, hdr)
         elif det == 'HI2':
             print ('HI Prep not yet ported')
             print (Quit)

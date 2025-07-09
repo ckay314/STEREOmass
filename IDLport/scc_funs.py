@@ -391,11 +391,24 @@ def secchi_rectify(a, scch, norotrate=False):
             print('No date in header to use in rectify. Assuming not post conjunction')
     
     stch = scch
+    # -----------------
+    # Rotate version
+    # -----------------
     if ~norotrate:
         scch['rectify'] = True
         obs = scch['obsrvtry']
+        # -----------------
+        #  A not post_conj
+        # -----------------
+        
         if (obs == 'STEREO_A') & ~post_conj:
             det = scch['detector']  
+            
+            if det == 'EUVI':
+                sys.exit('Havent ported yer')
+
+            if det == 'COR1':
+                sys.exit('Havent ported yer')
             
             if det == 'COR2':
                 # IDL -> b = rotate(a,1) same as np.rot90(k=3)
@@ -421,12 +434,22 @@ def secchi_rectify(a, scch, norotrate=False):
                 stch['dstart2']	=(51-stch['r1row']+1)>1
                 stch['dstop2']	=stch['dstart2']-1+((stch['r2row']-stch['r1row']+1)<2048)
                 
-            else:
-                print('Havent ported rectify things beyond COR2 so far')
-                print(quit)
-                
+            if det == 'HI1':
+                sys.exit('Havent ported yer')
+            
+            if det == 'HI2':
+                sys.exit('Havent ported yer')
+                            
+        # -----------------
+        #  B (didn't survive to post_conj)
+        # -----------------        
         if (obs == 'STEREO_B'):
             det = scch['detector']  
+            if det == 'EUVI':
+                sys.exit('Havent ported yer')
+
+            if det == 'COR1':
+                sys.exit('Havent ported yer')
             
             if det == 'COR2':
                 # IDL -> b = rotate(a,2) same as np.rot90(,k=1)
@@ -451,12 +474,25 @@ def secchi_rectify(a, scch, norotrate=False):
                 stch['dstart2']	=(79-stch['r1row']+1)>1
                 stch['dstop2']	=stch['dstart2']-1+((stch['r2row']-stch['r1row']+1)<2048)
             
-            else:
-                print('Havent ported rectify things beyond COR2 so far')
-                print(quit)
+            if det == 'HI1':
+                sys.exit('Havent ported yer')
+            
+            if det == 'HI2':
+                sys.exit('Havent ported yer')
+            
                 
+        # -----------------
+        #  A  post_conj
+        # -----------------        
         if (obs == 'STEREO_A') & post_conj:
             det = scch['detector']
+            
+            if det == 'EUVI':
+                sys.exit('Havent ported yer')
+
+            if det == 'COR1':
+                sys.exit('Havent ported yer')
+            
             if det == 'COR2':
                 # IDL -> b = rotate(a,2) same as np.rot90(,k=1)
                 b = np.rot90(a)
@@ -479,6 +515,18 @@ def secchi_rectify(a, scch, norotrate=False):
                 #  naxis2
                 stch['dstart2']	=(79-stch['r1row']+1)>1
                 stch['dstop2']	=stch['dstart2']-1+((stch['r2row']-stch['r1row']+1)<2048)
+
+            if det == 'HI1':
+                sys.exit('Havent ported yer')
+            
+            if det == 'HI2':
+                sys.exit('Havent ported yer')
+            
+                
+        
+    # -----------------
+    # No Rotate version
+    # -----------------
     else:
         stch.rectify = 'F'
         b = a 	    	# no change
@@ -522,6 +570,117 @@ def rebinIDL(arr, new_shape):
     outarr = arr.reshape(new_shape[0], factors[0], new_shape[0], factors[0]).mean(3).mean(1)
     return outarr
     
+def scc_sebip(img, hdr):
+    # Assuming everything is ok as usual
+    im = img
+    flag = 0
+
+    ip = hdr['ip_00_19']
+    # Make sure IP is 60 char long, could be as low as 58
+    # (just porting these very non python lines for now)
+    if len(ip) < 60:
+        ip = ' ' + ip
+    if len(ip) < 60:
+        ip = ' ' + ip
+    # This is a string of 20 up to 3 digit numbers. Most are 2 digits but it gets squished
+    # together during the rare 3 digit ones so have to separate. Copied IDL method (ish) but  
+    # could probably simplify   
+    ipEnc = ip.encode(encoding='utf-8')
+    byteIt = np.array([ipEnc[i] for i in range(60)]) 
+    seb_ip = [chr(byteIt[i*3])+chr(byteIt[i*3+1])+chr(byteIt[i*3+2]) for i in range(20)]
+    
+    # Trim SW images
+    x = np.where(seb_ip == '117')[0]
+    if len(x) != 0:
+        print ('Need to port this when hit proper test case (in scc_sebip)')
+        print (Quit)
+
+    # Don't need the Vin Diesel chunk (108 - 121), just check the cases for corrections
+    # on the fly below
+    flag = False
+
+    seb_ip = np.array(seb_ip)
+    if '  1' in seb_ip:
+        count = len(np.where(seb_ip == '  1')[0])
+        if hdr['DIV2CORR']: 
+            count = count  - 1
+        im = im * (2 ** count)
+        hdr['history'] = 'seb_ip Corrected for Divide by 2 x '+str(count)
+        flag = True
+        
+    if '  2' in seb_ip:
+        count = len(np.where(seb_ip == '  2')[0])
+        im = im**(2**count)
+        hdr['history'] = 'seb_ip Corrected for Square Root x '+str(count)
+        flag = True
+        
+    if (' 16' in seb_ip) or (' 17' in seb_ip):
+        count = len(np.where(seb_ip == ' 16')[0]) + len(np.where(seb_ip == ' 17')[0])
+        im = im * (64**count)
+        hdr['history'] = 'seb_ip Corrected for HI?SPW Divide by 64 x '+str(count)
+        flag = True
+
+    if ' 50' in seb_ip:
+        count = len(np.where(seb_ip == ' 50')[0])
+        im = im * (4**count)
+        hdr['history'] = 'seb_ip Corrected for for Divide by 4 x '+str(count)
+        flag = True
+        
+    if ' 53' in seb_ip:
+        count = len(np.where(seb_ip == ' 53')[0])
+        im = im * (4**count)
+        hdr['history'] = 'seb_ip Corrected for for Divide by 4 x '+str(count)
+        flag = True
+        
+    if ' 82' in seb_ip:
+        count = len(np.where(seb_ip == ' 82')[0])
+        im = im * (2**count)
+        hdr['history'] = 'seb_ip Corrected for Divide by 2 x '+str(count)
+        flag = True
+
+    if ' 83' in seb_ip:
+        count = len(np.where(seb_ip == ' 83')[0])
+        im = im * (4**count)
+        hdr['history'] = 'seb_ip Corrected for for Divide by 4 x '+str(count)
+        flag = True
+
+    if ' 84' in seb_ip:
+        count = len(np.where(seb_ip == ' 84')[0])
+        im = im * (8**count)
+        hdr['history'] = 'seb_ip Corrected for for Divide by 8 x '+str(count)
+        flag = True
+
+    if ' 85' in seb_ip:
+        count = len(np.where(seb_ip == ' 85')[0])
+        im = im * (16**count)
+        hdr['history'] = 'seb_ip Corrected for for Divide by 16 x '+str(count)
+        flag = True
+
+    if ' 86' in seb_ip:
+        count = len(np.where(seb_ip == ' 86')[0])
+        im = im * (32**count)
+        hdr['history'] = 'seb_ip Corrected for for Divide by 32 x '+str(count)
+        flag = True
+
+    if ' 87' in seb_ip:
+        count = len(np.where(seb_ip == ' 87')[0])
+        im = im * (64**count)
+        hdr['history'] = 'seb_ip Corrected for for Divide by 64 x '+str(count)
+        flag = True
+
+    if ' 88' in seb_ip:
+        count = len(np.where(seb_ip == ' 88')[0])
+        im = im * (128**count)
+        hdr['history'] = 'seb_ip Corrected for for Divide by 128 x '+str(count)
+        flag = True
+
+    if '118' in seb_ip:
+        count = len(np.where(seb_ip == '118')[0])
+        im = im * (3**count)
+        hdr['history'] = 'seb_ip Corrected for for Divide by 3 x '+str(count)
+        flag = True
+    return im, hdr, flag
+
 def scc_getbkgimg(hdr, doRot=False):
     # Assume no interp for now
     
@@ -758,8 +917,56 @@ def scc_getbkgimg(hdr, doRot=False):
     
     return bim, bhdr
                         
+def scc_hi_diffuse(hdr, ipsum=None):   
+    dtor = np.pi / 180.            
+    if ipsum == None:
+        ipsum = hdr['ipsum']
+        
+    summing = 2 ** (ipsum - 1)
+    
+    cdelt = None
+    if 'ravg' in hdr:
+        if hdr['ravg'] > 0:
+            mu = hdr['pv2_1']
+            cdelt = hdr['cdelt1'] * dtor
+    if cdelt == None:
+        if hdr['detector'] == 'HI1':
+            if hdr['OBSRVTRY'] == 'STEREO_A':
+                mu = 0.102422
+                cdelt = 35.96382 / 3600 * dtor * summing
+            elif hdr['OBSRVTRY'] == 'STEREO_B':
+                mu = 0.095092
+                cdelt = 35.89977 / 3600 * dtor * summing
+        if hdr['detector'] == 'HI2':
+            if hdr['OBSRVTRY'] == 'STEREO_A':
+                mu = 0.785486
+                cdelt = 130.03175 / 3600 * dtor * summing
+            elif hdr['OBSRVTRY'] == 'STEREO_B':
+                mu = 0.68886
+                cdelt = 129.80319 / 3600 * dtor * summing
                 
-            
+    # Compute pixel size in mm and paraxial focal length
+    pixelSize = 0.0135 * summing
+    fp = pixelSize / cdelt
+    
+    # Compute linear distance from center of ccd
+    x = np.arange(hdr['naxis1']) - hdr['crpix1'] + hdr['dstart1']
+    y = np.arange(hdr['naxis2']) - hdr['crpix2'] + hdr['dstart2']
+    xx = np.zeros([hdr['naxis1'],hdr['naxis1']])
+    yy = np.zeros([hdr['naxis1'],hdr['naxis1']])    
+    for i in range(hdr['naxis1']):
+        xx[i,:] = x
+        yy[:,i] = y
+    r = np.sqrt(xx**2 +yy**2) * pixelSize
+    
+    # get solid angle
+    gamma = fp * (mu + 1.0) / r
+    cosalpha1 = (-1.0 * mu + gamma * np.sqrt(1.0-mu*mu+gamma*gamma))/(1.0+gamma*gamma)
+    
+    correct = ((mu+1.0)**2 *(mu*cosalpha1+1.0)) / ((mu+cosalpha1)**3)
+   
+    return correct
+    
             
             
             
