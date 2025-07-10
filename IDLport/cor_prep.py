@@ -25,7 +25,6 @@ def get_calimg(hdr, calimg_filename=None):
     path = calpath
     
     det = hdr['DETECTOR']
-    print (det)
     if det == 'COR1':
         cal_version = '20090723_flatfd'
         obs = hdr['OBSRVTRY']
@@ -88,7 +87,6 @@ def get_calimg(hdr, calimg_filename=None):
         # Make sure the calibration header has all the keywords. Looks like
         # it's all the default values but some tags missing which breaks things
         cal_hdr = fill_from_defhdr(cal_hdr)
-
     # Trim calibration image to CCD coordinates
     if cal_hdr['P1COL'] <= 1:
         if HIsum_flag:
@@ -104,13 +102,12 @@ def get_calimg(hdr, calimg_filename=None):
         cal = cal_image[y1:y2+1,x1:x2+1] # think need to account for noninclusive pythong
     else:
         cal = cal_image
-        
-    # Correct calibrage image for rectification
-    if (hdr['RECTIFY']) and (not cal_hdr['RECTIFY']):
-        cal, cal_hdr = secchi_rectify(cal, cal_hdr)
-    print(cal[0,110])
     
-    # confirmed cal matches common block and new for COR2A at this point
+    # Correct calibrage image for rectification
+    calRect = True
+    if cal_hdr['RECTIFY'] in [False, 'F']: False
+    if (hdr['RECTIFY']) and calRect:
+        cal, cal_hdr = secchi_rectify(cal, cal_hdr)
     
     # Correct callibration image for rescale -> HI 
     if HIsum_flag:
@@ -121,7 +118,7 @@ def get_calimg(hdr, calimg_filename=None):
     else:
         ssum = 2**(hdr['summed']-1)
      
-    # Rebin if cal isn't same shape as source im. TBD!!!    
+    # Rebin if cal isn't same shape as source im. TBD!!!  
     s = cal.shape
     if ssum != 1:
         cal = rebinIDL(cal, np.array([int(s[0]/ssum), int(s[1]/ssum)]))
@@ -140,7 +137,7 @@ def get_calimg(hdr, calimg_filename=None):
     cut2 = datetime.datetime(2023,8,12)
     if (dtobs > cut1) & (dtobs < cut2):
        cal = np.rot90(cal, k=2)
-          
+                 
     return cal, hdr
     
 def get_calfac(hdr):
@@ -487,6 +484,8 @@ def cor_prep(im, hdr, calibrate_off=False, warp_off=False):
         
     # Skipping rotate for now
     # Skipping color table
+    
+    # Skipping updating header
     
     # Correct for in-flight calbration Bug 232
     if (hdr['detector'] == 'COR2'):

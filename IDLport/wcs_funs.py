@@ -2,7 +2,7 @@ import numpy as np
 #from astropy import wcs
 
 c = np.pi / 180.
-cunit2rad = {'arcmin': c / 60.,   'arcsec': c / 3600.,  'mas': c / 3600.e3,  'rad':  1.}
+cunit2rad = {'arcmin': c / 60.,   'arcsec': c / 3600.,  'mas': c / 3600.e3,  'rad':  1., 'deg':c}
 
 
 def fitshead2wcs(hdr,system=''):
@@ -86,9 +86,20 @@ def fitshead2wcs(hdr,system=''):
     # skipping stuff don't think is needed
     wcsname = coord_type
     
-    # Ignoring proj names/vals for now bc unneeded and confusing?
-    # the test case has lonpole and pv2_1 at 180 and 0
-    
+    # Proj names/vals 
+    proj_names = []
+    proj_values = []
+    if 'LONPOLE' in hdr:
+        proj_names.append('LONPOLE')
+        proj_values.append(hdr['LONPOLE'])
+    if 'LATPOLE' in hdr:
+        proj_names.append('LATPOLE')
+        proj_values.append(hdr['LATPOLE'])
+    for key in tags:
+        if 'PV' in key:
+            if key[-1] != 'A': # don't seem to want the A tag version, not certain here tho
+                proj_names.append(key)
+                proj_values.append(hdr[key])
     
     # Make the output dictionary
     wcs = {}
@@ -106,8 +117,8 @@ def fitshead2wcs(hdr,system=''):
     wcs['cunit'] = [cunit1, cunit2]
     wcs['cdelt'] = [cdelt1, cdelt2]
     wcs['pc'] = pc
-    # wcs['proj_names']
-    # wcs['proj_values']
+    wcs['proj_names'] = np.array(proj_names)
+    wcs['proj_values'] = np.array(proj_values)
     wcs['roll_angle'] = hdr['SC_ROLL'+system]
     # wc['simple']
     # wcs['time']
@@ -207,6 +218,102 @@ def wcs_proj_tan(my_wcs, coord, doQuick=False, force_proj=False):
     return coord
     
 
+def wcs_proj_azp(my_wcs, coord):
+    dtor = np.pi / 180.
+    halfpi = np.pi / 2
+    cx = cunit2rad[my_wcs['cunit'][0]]
+    cy = cunit2rad[my_wcs['cunit'][1]]
+    phi0 = 0.
+    theta0 = 90.
+    if 'proj_names' in my_wcs:
+        for item in my_wcs['proj_names']:
+            if item == 'PV1_1':
+                idx = np.where(my_wcs['proj_names'] == item)[0]
+                phi0 = my_wcs['proj_values'][idx[0]]
+            if item == 'PV1_2':
+                idx = np.where(my_wcs['proj_names'] == item)[0]
+                phi0 = my_wcs['proj_values'][idx[0]]
+    if (phi0 != 0) or (theta0 != 90):
+        print ('Non-standard PVi_1 and/or PVi_2 values -- ignored') # so why did we bother checking?
+    
+    # Convert to rads
+    phi0, theta0 = phi0 * dtor, theta0 * dtor
+    
+    mu = 0.
+    gamma = 0.
+    if 'proj_names' in my_wcs:
+        for item in my_wcs['proj_names']:
+            if item == 'PV2_1':
+                idx = np.where(my_wcs['proj_names'] == item)[0]
+                mu = my_wcs['proj_values'][idx[0]]
+            if item == 'PV2_2':
+                idx = np.where(my_wcs['proj_names'] == item)[0]
+                gamma = my_wcs['proj_values'][idx[0]]
+    
+    # Convert gamma to radians
+    gamma = gamma  * dtor
+    
+    # Get the celestial longitude and latitude of the fiducial point.
+    alpha0, delta0 = my_wcs['crval'][0] * cx , my_wcs['crval'][1] * cy
+    
+    phip = 180
+    if delta0 > theta0: phip = 0
+    if 'proj_names' in my_wcs:
+        if 'LONPOLE' in my_wcs['proj_names']:
+            phip = my_wcs['proj_values'][np.where(my_wcs['proj_names'] == 'LONPOLE')][0]
+        if 'PV1_3' in my_wcs['proj_names']:
+            phip = my_wcs['proj_values'][np.where(my_wcs['proj_names'] == 'PV1_3')][0]
+    if (phip != 180) & (delta0 != halfpi):
+        print('Non standard LONPOLE value')
+    
+    phip = dtor * phip
+    
+    # Calculate the native spherical coords
+    phi = np.arctan2(cx*coord[0,:], -cy*coord[1,:])
+    r_theta = np.sqrt((cx*coord[0,:])**2 + (cy*coord[1,:]*np.cos(gamma))**2)
+    if gamma == 0:
+        rho = r_theta / (mu + 1)
+    else:
+        rho = r_theta / (mu + 1 + cy*coord[1,:]*np.sin(gamma))
+    psi = np.atan(1/rho)
+    omega = rho * mu / np.sqrt(rho**2 + 1)
+    # check for values outside +/- 1
+    badIdx = np.where(np.abs(omega) > 1)
+    # just replace with signed 1, not sure exactly what IDL does
+    omega[badIdx] = np.sign(omega[badIdx])
+    omega = np.arcsin(omega)
+    theta = psi - omega   
+    badIdx = np.where(theta > np.pi)
+    theta[badIdx] = theta[badIdx] - 2*np.pi
+    theta2 = psi + omega + np.pi
+    badIdx = np.where(theta2 > np.pi)
+    theta2[badIdx] = theta2[badIdx] - 2*np.pi
+    badIdx = np.where((np.abs(theta2-halfpi)< np.abs(theta-halfpi)) & (np.abs(theta2 < halfpi)))
+    badIdx2 = np.where(np.abs(theta) > halfpi)
+    theta[badIdx] = theta2[badIdx]
+    theta[badIdx2] = theta2[badIdx2]
+    
+    
+    # Calculate the celestial spherical coordinates
+    if delta0 > halfpi:
+        alpha = alpha0 + phi - phip - np.pi
+        delta = theta
+    elif delta0 < -halfpi:
+        alpha = alpha0 - phi + phip
+        delta = -theta
+    else:
+        dphi = phi - phip
+        cos_dphi = np.cos(dphi)
+        sin_theta = np.sin(theta)
+        cos_theta = np.cos(theta)
+        alpha = alpha0 + np.arctan(-cos_theta * np.sin(dphi) / (sin_theta * np.cos(delta0) - cos_theta * np.sin(delta0) * cos_dphi))
+        delta = np.arcsin(sin_theta * np.sin(delta0) + cos_theta * np.cos(delta0) * cos_dphi)
+    
+    # Convert back into og units    
+    coord[0,:] = alpha / cx
+    coord[1,:] = delta / cy
+    return coord
+
 def wcs_get_coord(my_wcs):
     # Assuming an appropriate header
     # ignoring distortion, associate, apply for now (139-152)
@@ -222,15 +329,14 @@ def wcs_get_coord(my_wcs):
     coord = np.empty([n_axis, num_elements])
     coord[0,:] = index  % naxis1
     coord[1,:] = (index / naxis1 % naxis2).astype(int)
-    
+
     # Skipping distortion
     
     # Apply CRPIX values
     crpix = my_wcs['crpix']
     coord[0,:] = coord[0,:] - (crpix[0] -1)
     coord[1,:] = coord[1,:] - (crpix[1] -1)
-    
-    
+        
     # Skipping distortion/associate/pixel-list (218-234)
     
     # Calcualte immedate (relative coordinates)
@@ -257,10 +363,13 @@ def wcs_get_coord(my_wcs):
     proj = my_wcs['projection']
     if proj == 'TAN':
         coord = wcs_proj_tan(my_wcs, coord)
+    elif proj == 'AZP':
+        coord = wcs_proj_azp(my_wcs, coord)
+        
     else:
         print('Other projections not yet ported')
         print(Quit)
-        
+       
     # Skipping projextion, pos_long, nowrap since not hit in simple version
     
     # Reformat

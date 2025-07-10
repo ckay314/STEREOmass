@@ -126,10 +126,8 @@ def secchi_prep(filesIn, outSize=None, silent=False):
         elif det == 'HI1':
             im, hdr = hi_prep(im, hdr)
         elif det == 'HI2':
-            print ('HI Prep not yet ported')
-            print (Quit)
-                    
-                    
+            im, hdr = hi_prep(im, hdr)
+            
         # IP summing already done it seems
                 
         # Return the things

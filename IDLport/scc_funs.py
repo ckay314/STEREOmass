@@ -371,7 +371,7 @@ def scc_zelensky_array(im, hdr, outsize, out):
     
 def secchi_rectify(a, scch, norotrate=False):
     # check not already rectified
-    if scch['rectify']:
+    if scch['rectify'] not in ['F', False]:
         print('We already done did the rectifying. Returning original img in secchi_rectify')
         return a, scch
     
@@ -405,10 +405,49 @@ def secchi_rectify(a, scch, norotrate=False):
             det = scch['detector']  
             
             if det == 'EUVI':
-                sys.exit('Havent ported yer')
+                b = np.rot90(a[:,::-1], k=-1)
+                stch['r1row']=2176-scch['p2col']+1
+                stch['r2row']=2176-scch['p1col']+1
+                stch['r1col']=2176-scch['p2row']+1
+                stch['r2col']=2176-scch['p1row']+1
+                stch['crpix1']=scch['naxis2']-scch['crpix2']+1
+                stch['crpix2']=scch['naxis1']-scch['crpix1']+1
+                stch['naxis1']=scch['naxis2']
+                stch['naxis2']=scch['naxis1']
+                stch['sumrow']=scch['sumcol']
+                stch['sumcol']=scch['sumrow']
+                stch['rectrota']=6
+                rotcmt='transpose and rotate 180 deg CCW'
+                #--indicate imaging area - rotate 6
+                #  naxis1
+                stch['dstart1']	=(129-stch['r1col']+1)>1
+                stch['dstop1']	=stch['dstart1']-1 + ((stch['r2col']-stch['r1col']+1)<2048)
+                #  naxis2
+                stch['dstart2']	=(79-stch['r1row']+1)>1
+                stch['dstop2']	=stch['dstart2']-1+((stch['r2row']-stch['r1row']+1)<2048)
+                
 
             if det == 'COR1':
-                sys.exit('Havent ported yer')
+                b=np.rot90(a,k=1)  
+                stch['r1row']=2176-scch['p2col']+1
+                stch['r2row']=2176-scch['p1col']+1
+                stch['r1col']=scch['p1row']
+                stch['r2col']=scch['p2row']
+                stch['crpix1']=scch['crpix2']
+                stch['crpix2']=scch['naxis1']-scch['crpix1']+1
+                stch['naxis1']=scch['naxis2']  
+                stch['naxis2']=scch['naxis1']
+                stch['sumrow']=scch['sumcol']
+                stch['sumcol']=scch['sumrow']
+                stch['rectrota']=3
+                rotcmt='rotate 270 deg CCW'
+                #--indicate imaging area - rotate 3
+                #  naxis1
+                stch['dstart1']	=1
+                stch['dstop1']	=stch['dstart1']-1+((stch['r2col']-stch['r1col']+1)<2048)
+                #  naxis2
+                stch['dstart2']	=(79-stch['r1row']+1)>1
+                stch['dstop2']	=stch['dstart2']-1+((stch['r2row']-stch['r1row']+1)<2048)
             
             if det == 'COR2':
                 # IDL -> b = rotate(a,1) same as np.rot90(k=3)
@@ -435,10 +474,24 @@ def secchi_rectify(a, scch, norotrate=False):
                 stch['dstop2']	=stch['dstart2']-1+((stch['r2row']-stch['r1row']+1)<2048)
                 
             if det == 'HI1':
-                sys.exit('Havent ported yer')
+                b=a 	    	# no change
+                stch['r1row']=scch['p1row']
+                stch['r2row']=scch['p2row']
+                stch['r1col']=scch['p1col']
+                stch['r2col']=scch['p2col']
+                #stch['naxis1']=scch['naxis1'] & stch['naxis2']=scch['naxis2']
+                stch['rectrota']=0
+                rotcmt='no rotation necessary'
             
             if det == 'HI2':
-                sys.exit('Havent ported yer')
+                b=a 	    	# no change
+                stch['r1row']=scch['p1row']
+                stch['r2row']=scch['p2row']
+                stch['r1col']=scch['p1col']
+                stch['r2col']=scch['p2col']
+                #stch['naxis1']=scch['naxis1'] & stch['naxis2']=scch['naxis2']
+                stch['rectrota']=0
+                rotcmt='no rotation necessary'
                             
         # -----------------
         #  B (didn't survive to post_conj)
@@ -446,13 +499,51 @@ def secchi_rectify(a, scch, norotrate=False):
         if (obs == 'STEREO_B'):
             det = scch['detector']  
             if det == 'EUVI':
-                sys.exit('Havent ported yer')
+                b=np.rot90(a,k=1)
+                stch['r1row']=2176-scch['p2col']+1
+                stch['r2row']=2176-scch['p1col']+1
+                stch['r1col']=scch['p1row']
+                stch['r2col']=scch['p2row']
+                stch['crpix1']=scch['crpix2']
+                stch['crpix2']=scch['naxis1']-scch['crpix1']+1
+                stch['naxis1']=scch['naxis2']
+                stch['naxis2']=scch['naxis1']
+                stch['sumrow']=scch['sumcol']
+                stch['sumcol']=scch['sumrow']
+                stch['rectrota']=3
+                rotcmt='rotate 270 deg CCW'
+                #--indicate imaging area - rotate 3
+                #  naxis1
+                stch['dstart1']	=1
+                stch['dstop1']	=stch['dstart1']-1+((stch['r2col']-stch['r1col']+1)<2048)
+                #  naxis2
+                stch['dstart2']	=(79-stch['r1row']+1)>1
+                stch['dstop2']	=stch['dstart2']-1+((stch['r2row']-stch['r1row']+1)<2048)
 
             if det == 'COR1':
-                sys.exit('Havent ported yer')
+                b=np.rot90(a,k=-1)      # 90 CCW =[x0,y0]=[y0,x1], [x1,y1]=[y1,x0] 
+                stch['r1row']=scch['p1col']
+                stch['r2row']=scch['p2col']
+                stch['r1col']=2176-scch['p2row']+1
+                stch['r2col']=2176-scch['p1row']+1
+                stch['crpix1']=scch['naxis2']-scch['crpix2']+1
+                stch['crpix2']=scch['crpix1']
+                stch['naxis1']=scch['naxis2']
+                stch['naxis2']=scch['naxis1']
+                stch['sumrow']=scch['sumcol']
+                stch['sumcol']=scch['sumrow']
+                stch['rectrota']=1
+                rotcmt='rotate 90 deg CCW'
+                #--indicate imaging area - rotate 1
+                #  naxis1
+                stch['dstart1']	=(129-stch['r1col']+1)>1
+                stch['dstop1']	=stch['dstart1']-1+((stch['r2col']-stch['r1col']+1)<2048)
+                #  naxis2
+                stch['dstart2']	=(51-stch['r1row']+1)>1
+                stch['dstop2']	=stch['dstart2']-1+((stch['r2row']-stch['r1row']+1)<2048)
             
             if det == 'COR2':
-                # IDL -> b = rotate(a,2) same as np.rot90(,k=1)
+                # IDL -> b = rotate(a,3) same as np.rot90(,k=1)
                 b = np.rot90(a)
                 stch['r1row']=2176-scch['p2col']+1
                 stch['r2row']=2176-scch['p1col']+1
@@ -475,10 +566,44 @@ def secchi_rectify(a, scch, norotrate=False):
                 stch['dstop2']	=stch['dstart2']-1+((stch['r2row']-stch['r1row']+1)<2048)
             
             if det == 'HI1':
-                sys.exit('Havent ported yer')
+                b= a[::-1,::-1]
+                stch['r1row']=2176-scch['p2row']+1
+                stch['r2row']=2176-scch['p1row']+1
+                stch['r1col']=2176-scch['p2col']+1
+                stch['r2col']=2176-scch['p1col']+1
+                stch['crpix1']=scch['naxis1']-scch['crpix1']+1
+                stch['crpix2']=scch['naxis2']-scch['crpix2']+1
+                stch['naxis1']=scch['naxis1']
+                stch['naxis2']=scch['naxis2']
+                stch['rectrota']=2
+                rotcmt='rotate 180 deg CCW'
+                #--indicate imaging area - rotate 2
+                #  naxis1
+                stch['dstart1']	=(79-stch['r1col']+1)>1
+                stch['dstop1']	=stch['dstart1']-1+((stch['r2col']-stch['r1col']+1)<2048)
+                #  naxis2
+                stch['dstart2']	=(129-stch['r1row']+1)>1
+                stch['dstop2']	=stch['dstart2']-1+((stch['r2row']-stch['r1row']+1)<2048)
             
             if det == 'HI2':
-                sys.exit('Havent ported yer')
+                b= a[::-1,::-1]
+                stch['r1row']=2176-scch['p2row']+1
+                stch['r2row']=2176-scch['p1row']+1
+                stch['r1col']=2176-scch['p2col']+1
+                stch['r2col']=2176-scch['p1col']+1
+                stch['crpix1']=scch['naxis1']-scch['crpix1']+1
+                stch['crpix2']=scch['naxis2']-scch['crpix2']+1
+                stch['naxis1']=scch['naxis1']
+                stch['naxis2']=scch['naxis2']
+                stch['rectrota']=2
+                rotcmt='rotate 180 deg CCW'
+                #--indicate imaging area - rotate 2
+                #  naxis1
+                stch['dstart1']	=(79-stch['r1col']+1)>1
+                stch['dstop1']	=stch['dstart1']-1+((stch['r2col']-stch['r1col']+1)<2048)
+                #  naxis2
+                stch['dstart2']	=(129-stch['r1row']+1)>1
+                stch['dstop2']	=stch['dstart2']-1+((stch['r2row']-stch['r1row']+1)<2048)
             
                 
         # -----------------
@@ -488,13 +613,51 @@ def secchi_rectify(a, scch, norotrate=False):
             det = scch['detector']
             
             if det == 'EUVI':
-                sys.exit('Havent ported yer')
+                b=np.transpose(a)
+                stch['r1row']=scch['p1col']
+                stch['r2row']=scch['p2col']
+                stch['r1col']=scch['p1row']
+                stch['r2col']=scch['p2row']
+                stch['crpix1']=scch['naxis1']-scch['crpix2']+1
+                stch['crpix2']=scch['naxis2']-scch['crpix1']+1
+                stch['naxis1']=scch['naxis2']
+                stch['naxis2']=scch['naxis1']
+                stch['sumrow']=scch['sumcol']
+                stch['sumcol']=scch['sumrow']
+                stch['rectrota']=4
+                rotcmt='transpose'
+                #--indicate imaging area - rotate 4
+                #  naxis1
+                stch['dstart1']	=(129-stch['r1col']+1)>1
+                stch['dstop1']	=stch['dstart1']-1+((stch['r2col']-stch['r1col']+1)<2048)
+                #  naxis2
+                stch['dstart2']	=(79-stch['r1row']+1)>1
+                stch['dstop2']	=stch['dstart2']-1+((stch['r2row']-stch['r1row']+1)<2048)
 
             if det == 'COR1':
-                sys.exit('Havent ported yer')
+                b=np.rot90(a, k=-1) #stch['r1row'] 90 CCW =[x0,y0]=[y0,x1], [x1,y1]=[y1,x0] 
+                stch['r1row']=scch['p1col']
+                stch['r2row']=scch['p2col']
+                stch['r1col']=2176-scch['p2row']+1
+                stch['r2col']=2176-scch['p1row']+1
+                stch['crpix1']=scch['naxis2']-scch['crpix2']+1
+                stch['crpix2']=scch['crpix1']
+                stch['naxis1']=scch['naxis2'] 
+                stch['naxis2']=scch['naxis1']
+                stch['sumrow']=scch['sumcol']
+                stch['sumcol']=scch['sumrow']
+                stch['rectrota']=1
+                rotcmt='rotate 90 deg CCW'
+                #--indicate imaging area - rotate 1
+                #  naxis1
+                stch['dstart1']	=(129-stch['r1col']+1)>1
+                stch['dstop1']	=stch['dstart1']-1+((stch['r2col']-stch['r1col']+1)<2048)
+                #  naxis2
+                stch['dstart2']	=(51-stch['r1row']+1)>1
+                stch['dstop2']	=stch['dstart2']-1+((stch['r2row']-stch['r1row']+1)<2048)
             
             if det == 'COR2':
-                # IDL -> b = rotate(a,2) same as np.rot90(,k=1)
+                # IDL -> b = rotate(a,3) same as np.rot90(,k=1)
                 b = np.rot90(a)
                 stch['r1row']=2176-scch['p2col']+1
                 stch['r2row']=2176-scch['p1col']+1
@@ -517,10 +680,44 @@ def secchi_rectify(a, scch, norotrate=False):
                 stch['dstop2']	=stch['dstart2']-1+((stch['r2row']-stch['r1row']+1)<2048)
 
             if det == 'HI1':
-                sys.exit('Havent ported yer')
+                b=a[::-1,::-1]
+                stch['r1row']=2176-scch['p2row']+1
+                stch['r2row']=2176-scch['p1row']+1
+                stch['r1col']=2176-scch['p2col']+1
+                stch['r2col']=2176-scch['p1col']+1
+                stch['crpix1']=scch['naxis1']-scch['crpix1']+1
+                stch['crpix2']=scch['naxis2']-scch['crpix2']+1
+                stch['naxis1']=scch['naxis1']
+                stch['naxis2']=scch['naxis2']
+                stch['rectrota']=2
+                rotcmt='rotate 180 deg CCW'
+                #--indicate imaging area - rotate 2
+                #  naxis1
+                stch['dstart1']	=(79-stch['r1col']+1)>1
+                stch['dstop1']	=stch['dstart1']-1+((stch['r2col']-stch['r1col']+1)<2048)
+                #  naxis2
+                stch['dstart2']	=(129-stch['r1row']+1)>1
+                stch['dstop2']	=stch['dstart2']-1+((stch['r2row']-stch['r1row']+1)<2048)
             
             if det == 'HI2':
-                sys.exit('Havent ported yer')
+                b=a[::-1,::-1]
+                stch['r1row']=2176-scch['p2row']+1
+                stch['r2row']=2176-scch['p1row']+1
+                stch['r1col']=2176-scch['p2col']+1
+                stch['r2col']=2176-scch['p1col']+1
+                stch['crpix1']=scch['naxis1']-scch['crpix1']+1
+                stch['crpix2']=scch['naxis2']-scch['crpix2']+1
+                stch['naxis1']=scch['naxis1']
+                stch['naxis2']=scch['naxis2']
+                stch['rectrota']=2
+                rotcmt='rotate 180 deg CCW'
+                #--indicate imaging area - rotate 2
+                #  naxis1
+                stch['dstart1']	=(79-stch['r1col']+1)>1
+                stch['dstop1']	=stch['dstart1']-1+((stch['r2col']-stch['r1col']+1)<2048)
+                #  naxis2
+                stch['dstart2']	=(129-stch['r1row']+1)>1
+                stch['dstop2']	=stch['dstart2']-1+((stch['r2row']-stch['r1row']+1)<2048)
             
                 
         
@@ -534,7 +731,7 @@ def secchi_rectify(a, scch, norotrate=False):
         stch['r2row']=scch['p2row']
         stch['r1col']=scch['p1col']
         stch['r2col']=scch['p2col']
-        #stch.naxis1=scch.naxis1 & stch.naxis2=scch.naxis2
+        #stch['naxis1']=scch['naxis1'] & stch['naxis2']=scch['naxis2']
         stch['rectrota']=0
         rotcmt='no rotation'
         
