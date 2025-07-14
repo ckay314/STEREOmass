@@ -359,15 +359,43 @@ def scc_zelensky_array(im, hdr, outsize, out):
     if hdr['INSTRUME'] != 'SECCHI':
         print ('Cannot guarantee scc_zelelnsky_array works for not secchi cases')
         print (Quit)
-    
+        
+    # Skipping new/full keyword    
+
     # Skipping to 141
     output_img = im
-    
     if (hdr['naxis1'] != out['outsize'][0]) or (hdr['naxis2'] != out['outsize'][1]):
-        print ('Havent addded resize code in scc_zelelnsky_array yet')
-        print (Quit)
+        if (out['readsize'][1] - 1 != (hdr['r2col'] - hdr['r1col'])) or (out['readsize'][0] - 1 != (hdr['r2row'] - hdr['r1row'])):
+            print ('hit uncoded part of scc_zelensky_array')
+            print(Quit)
+            
+        if out['binned'] != 2 ** (hdr['summed'] -1):
+            outshape = np.array(output_img.shape).astype(float)
+            bindif = np.max(outshape /np.max(out['outsize']))
+            output_img = rebinIDL(im, out['outsize'].astype(int))
+            
+            hdr['summed'] = np.log(out['binned']) / np.log(2) + 1
+            hdr['dstop1'] = hdr['dstop1'] / bindif
+            hdr['dstop2'] = hdr['dstop2'] / bindif
+            hdr['CRPIX1'] = 0.5+(hdr['crpix1']-0.5)/bindif
+            hdr['CRPIX1A']= 0.5+(hdr['CRPIX1A']-0.5)/bindif
+            hdr['CRPIX2'] = 0.5+(hdr['crpix2']-0.5)/bindif
+            hdr['CRPIX2A']= 0.5+(hdr['CRPIX2A']-0.5)/bindif
+            hdr['CDELT1'] =  hdr['CDELT1']*bindif
+            hdr['CDELT2'] =  hdr['CDELT2']*(bindif)
+            hdr['CDELT1A'] =  hdr['CDELT1A']*(bindif)
+            hdr['CDELT2A'] =  hdr['CDELT2A']*(bindif)
+            
+            s = output_img.shape
+            hdr['naxis1'] = s[0]
+            hdr['naxis2'] = s[1]
+            hdr['dstop1'] = np.min([hdr['dstop1'], s[0]]) # think this equiv of IDL
+            hdr['dstop2'] = np.min([hdr['dstop2'], s[1]])
+            
+            # Don't think we use xcen/ycen so ignoring this
+                                    
+    return output_img, hdr
     
-    return output_img
     
 def secchi_rectify(a, scch, norotrate=False):
     # check not already rectified
@@ -876,7 +904,7 @@ def scc_sebip(img, hdr):
         im = im * (3**count)
         hdr['history'] = 'seb_ip Corrected for for Divide by 3 x '+str(count)
         flag = True
-    return im, hdr, flag
+    return im.astype(int), hdr, flag
 
 def scc_getbkgimg(hdr, doRot=False):
     # Assume no interp for now

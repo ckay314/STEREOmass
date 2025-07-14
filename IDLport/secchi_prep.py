@@ -53,7 +53,7 @@ def secchi_prep(filesIn, outSize=None, silent=False):
     # Might have outsize keyword passed, don't have to explicitly check in Python
     # This sets up empty arrays and an empty header dict
     # -> probably don't need this bc python doesn't allot memory like IDL
-    images, headers, outout, outsize, out = scc_make_array(filesIn, outSize=None)
+    images, headers, outout, outsize, out = scc_make_array(filesIn, outSize=outSize)
     ex['outsize'] = outsize
 
     # |------------------------------------------------------|
@@ -85,17 +85,16 @@ def secchi_prep(filesIn, outSize=None, silent=False):
             hdr['r1row']=hdr['p1row']
             hdr['r2row']=hdr['p2row']
         # Not including keyword rectify for now
-                
+
         # Skipping pre commissioning since we don't seem to hit (383 - 404)
             
         # Not hitting trimming (405 - 408)
                 
         # Rescale image to fit output size
         #im = SCC_PUTIN_ARRAY(im,hdr,outout,_extra=ex)
-        im = scc_zelensky_array(im, hdr, outout, out)
-            
+        im, hdr = scc_zelensky_array(im, hdr, outout, out)
+
         # Not appliying discri_pobk (413-425)
-                
         # Check if level 1 image
         let = hdr['filename'][16]
         encoded_bytes = let.encode(encoding='utf-8')
@@ -118,10 +117,10 @@ def secchi_prep(filesIn, outSize=None, silent=False):
             print ('EUVI Prep not yet ported')
             print (Quit)
         elif det == 'COR1':
-            im, hdr = cor_prep(im, hdr)
+            im, hdr = cor_prep(im, hdr, outSize)
             # No polarization for now
         elif det == 'COR2':
-            im, hdr = cor_prep(im, hdr)
+            im, hdr = cor_prep(im, hdr, outSize)
             # No polarization for now
         elif det == 'HI1':
             im, hdr = hi_prep(im, hdr)

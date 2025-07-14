@@ -4,8 +4,10 @@ import sys
 import astropy.units as u
 #from astropy.wcs import WCS
 from secchi_prep import secchi_prep
+from wispr_prep import wispr_prep
 from wcs_funs import fitshead2wcs, get_Suncent, wcs_get_coord
 
+import matplotlib.pyplot as plt
 
 # Make sunpy/astropy shut up about info/warning for missing metadata
 import logging
@@ -98,7 +100,6 @@ def calcCMEmass(img, hdr, box=None, onlyNe=False, doPB=False):
     if hdr['cunit1'] == 'deg':
         dist = dist * 3600.
     dist = np.sqrt(dist[0,:,:]**2 + dist[1,:,:]**2) / hdr['rsun']
-         
     
     # |---------------------------------------|
     # |----------- Apply el Theory -----------|
@@ -150,8 +151,8 @@ def calcCMEmass(img, hdr, box=None, onlyNe=False, doPB=False):
 #fileB = '/Users/kaycd1/wombat/fits/testing/COR2A_20241028_125330_d4c2A.fts'
 
 # COR2B 
-#fileA = '/Users/kaycd1/wombat/fits/testing/COR2B_20120712_162400_d4c2B.fts'
-#fileB = '/Users/kaycd1/wombat/fits/testing/COR2B_20120712_185400_d4c2B.fts'
+fileA = '/Users/kaycd1/wombat/fits/testing/COR2B_20120712_162400_d4c2B.fts'
+fileB = '/Users/kaycd1/wombat/fits/testing/COR2B_20120712_185400_d4c2B.fts'
 
 #COR1A
 #fileA = '/Users/kaycd1/wombat/fits/testing/COR1A_20121231_001000_n4c1A.fts'
@@ -174,14 +175,23 @@ def calcCMEmass(img, hdr, box=None, onlyNe=False, doPB=False):
 #fileB = '/Users/kaycd1/wombat/fits/testing/HI2A_20090301_180921_s4h2A.fts'
 
 #HI2B
-fileA = '/Users/kaycd1/wombat/fits/testing/HI2B_20130201_000921_s4h2B.fts'
-fileB = '/Users/kaycd1/wombat/fits/testing/HI2B_20130201_100921_s4h2B.fts'
+#fileA = '/Users/kaycd1/wombat/fits/testing/HI2B_20130201_000921_s4h2B.fts'
+#fileB = '/Users/kaycd1/wombat/fits/testing/HI2B_20130201_100921_s4h2B.fts'
 
 
 # Python secchi_prep appears to match IDL within 0.005% 
-ims, hdrs = secchi_prep([fileA, fileB])
+ims, hdrs = secchi_prep([fileA, fileB], outSize=([1024,1024]))
+# PSP WISPR
+#fileA = '/Users/kaycd1/wombat/fits/testing/psp_L2_wispr_20250610T000025_V0_1221.fits'
+#fileB = '/Users/kaycd1/wombat/fits/testing/psp_L2_wispr_20250610T203026_V0_1221.fits'
+#ims, hdrs = wispr_prep([fileA, fileB])
 
 diff = ims[1] - ims[0]
 
+
 mass, hdr = calcCMEmass(diff, hdrs[1])
-print(mass[196,140])
+print(mass[111,444])
+
+fig = plt.figure()
+plt.imshow(np.log(np.abs(mass)) * np.sign(mass))
+plt.show()

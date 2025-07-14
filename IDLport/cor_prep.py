@@ -16,7 +16,7 @@ cunit2rad = {'arcmin': c / 60.,   'arcsec': c / 3600.,  'mas': c / 3600.e3,  'ra
 global calpath
 calpath =  '/Users/kaycd1/ssw/stereo/secchi/calibration/'
 
-def get_calimg(hdr, calimg_filename=None):
+def get_calimg(hdr, calimg_filename=None, outSize=None):
     # Assuming proper header passed. Starting at 131
     new_flag = True
     HIsum_flag = False
@@ -283,7 +283,7 @@ def warp_tri(xr,yr,xi,yi,img):
     
     return imgOut
         
-def cor_calibrate(img, hdr, sebip_off=False, exptime_off=False, bias_off=False, calimg_off=False, calfac_off=False):
+def cor_calibrate(img, hdr, outSize=None, sebip_off=False, exptime_off=False, bias_off=False, calimg_off=False, calfac_off=False):
     # Flag that we done this in the fits header history
     newStuff = 'Applied python port of cor_calibrate.pro CK 2025'
     hdr['history'] = newStuff
@@ -316,7 +316,7 @@ def cor_calibrate(img, hdr, sebip_off=False, exptime_off=False, bias_off=False, 
     if calimg_off:
         calimg = 1.0
     else:
-        calimg, hdr = get_calimg(hdr)
+        calimg, hdr = get_calimg(hdr, outSize=outSize)
         hdr['history'] = 'Applied vignetting '
         
     if calfac_off:
@@ -331,7 +331,7 @@ def cor_calibrate(img, hdr, sebip_off=False, exptime_off=False, bias_off=False, 
         
     return img, hdr
 
-def cor1_calibrate(img, hdr, sebip_off=False, exptime_off=False, bias_off=False, calimg_off=False, calfac_off=False, bkgimg_off=False):  
+def cor1_calibrate(img, hdr, outSize=None, sebip_off=False, exptime_off=False, bias_off=False, calimg_off=False, calfac_off=False, bkgimg_off=False):  
     # Flag that we done this in the fits header history
     newStuff = 'Applied python port of cor_calibrate.pro CK 2025'
     hdr['history'] = newStuff
@@ -426,7 +426,7 @@ def cor2_warp(im,hdr):
         
         # get the binning already applied to image
         sumxy = 2**(hdr['summed']-1)
-        
+
         # because IDL says so
         scalef = 14.7 * sumxy
         r = np.sqrt((x - sumxy*scnt[0])**2  + (y - sumxy*scnt[1])**2)
@@ -436,10 +436,10 @@ def cor2_warp(im,hdr):
             cf = [1.04872e-05, -0.00801293, -0.243670]
         else:
             cf = [1.96029e-05, -0.0201616,   4.68841] 
-        r0 = r + (cf[2]+(cf[1]*r)+(cf[0]*(r*r))) / sumxy
+        r0 = (r + (cf[2]+(cf[1]*r)+(cf[0]*(r*r)))) / sumxy
+
         x = x / sumxy
         y = y / sumxy
- 
         
         theta = np.arctan2((y - scnt[1]), (x-scnt[0]))
         xi = r0 * np.cos(theta) + scnt[0]
@@ -452,7 +452,7 @@ def cor2_warp(im,hdr):
     
     return im, hdr
 
-def cor_prep(im, hdr, calibrate_off=False, warp_off=False):
+def cor_prep(im, hdr, outSize=None, calibrate_off=False, warp_off=False):
     # Assuming passed a nice header 
     
     # Skipping to 174
@@ -463,10 +463,9 @@ def cor_prep(im, hdr, calibrate_off=False, warp_off=False):
     # Calibration
     if not calibrate_off:
         if hdr['detector'] == 'COR1':
-            im, hdr = cor1_calibrate(im, hdr)
+            im, hdr = cor1_calibrate(im, hdr, outSize)
         else:
-            im, hdr = cor_calibrate(im, hdr)
-            
+            im, hdr = cor_calibrate(im, hdr, outSize)
     # Not hitting Missing block mask (193-199)
     missing = 0
     
