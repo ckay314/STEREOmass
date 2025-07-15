@@ -34,6 +34,10 @@ def fitshead2wcs(hdr,system=''):
         if 'CROTA'+str(i+1) in tags: crota_present = True
         for j in range(n_axis):
             if 'PC'+str(i+1)+'_'+str(j+1) in tags: pc_present = True
+            # add lowercase to work with sunpy map metadata format
+            elif 'pc'+str(i+1)+'_'+str(j+1) in tags: 
+                pc_present = True
+                hdr['PC'+str(i+1)+'_'+str(j+1)] = hdr['pc'+str(i+1)+'_'+str(j+1)]
             # dunno what cd is so skipping for now
     
     if pc_present:
@@ -49,15 +53,24 @@ def fitshead2wcs(hdr,system=''):
     
     # Extract CTYPE keywords 
     # Assume that the ctype is found so 1 is x and 2 is y
-    if 'CTYPE1' not in tags:
+    if 'CTYPE1' in tags:
+        crp1 = hdr['CRPIX1'] 
+        crp2 = hdr['CRPIX2'] 
+        crval1 = hdr['CRVAL1'+system]
+        crval2 = hdr['CRVAL2'+system]
+        cunit1 = hdr['CUNIT1'+system]
+        cunit2 = hdr['CUNIT2'+system]
+    elif 'ctype1' in tags:
+        crp1 = hdr['crpix1'] 
+        crp2 = hdr['crpix2'] 
+        crval1 = hdr['crval1'+system]
+        crval2 = hdr['crval2'+system]
+        cunit1 = hdr['cunit1'+system]
+        cunit2 = hdr['cunit2'+system]
+    else:
         print ('Issue in fitshead2wcs, missing ctype in header and havent coded alt version')
         print (Quit)
-    crp1 = hdr['CRPIX1'] 
-    crp2 = hdr['CRPIX2'] 
-    crval1 = hdr['CRVAL1'+system]
-    crval2 = hdr['CRVAL2'+system]
-    cunit1 = hdr['CUNIT1'+system]
-    cunit2 = hdr['CUNIT2'+system]
+    
     
     # skipping cname and non compliant strings
     
@@ -127,6 +140,8 @@ def fitshead2wcs(hdr,system=''):
     return wcs
                        
 def get_Suncent(my_wcs):
+    # this is simple version of wcs_get_coord with coord [0,0]
+    # shouldn't use for non TAN projection
     c2rx = cunit2rad[my_wcs['cunit'][0]]
     c2ry = cunit2rad[my_wcs['cunit'][1]]
     coord = [0,0]
@@ -139,6 +154,12 @@ def get_Suncent(my_wcs):
     return [scx, scy]
     
 def wcs_proj_tan(my_wcs, coord, doQuick=False, force_proj=False):
+    # Check shape of input array
+    singlePt = False
+    if len(coord.shape) == 1:
+        singlePt = True
+        coord = coord.reshape([2,1])
+        
     dtor = np.pi / 180.
     halfpi = np.pi / 2
     cx = cunit2rad[my_wcs['cunit'][0]]
@@ -215,9 +236,110 @@ def wcs_proj_tan(my_wcs, coord, doQuick=False, force_proj=False):
     coord[0,:] = alpha / cx
     coord[1,:] = delta / cy
     
+    if singlePt:
+        coord = coord.flatten()
+    
+    return coord
+
+def wcs_inv_proj_tan(my_wcs, coord, doQuick=False, force_proj=False):
+    # Check shape of input array
+    singlePt = False
+    if len(coord.shape) == 1:
+        singlePt = True
+        coord = coord.reshape([2,1])
+        
+    dtor = np.pi / 180.
+    halfpi = np.pi / 2
+    cx = cunit2rad[my_wcs['cunit'][0]]
+    cy = cunit2rad[my_wcs['cunit'][1]]
+    
+    # Quick version
+    if not force_proj:
+        if my_wcs['coord_type'] == 'Helioprojective-Radial':
+            ymm = np.array([np.min(coord[1,:]), np.max(coord[1,:])])
+            yrange = (ymm + my_wcs['crval'][1]) * cy + halfpi
+            if np.max(np.abs(yrange)) <= 3 * dtor: 
+                doQuick = True
+        else:
+            xmm = np.array([np.min(coord[0,:]), np.max(coord[0,:])])
+            xxrange = (xmm + my_wcs['crval'][0]) * cx
+            ymm = np.array([np.min(coord[1,:]), np.max(coord[1,:])])
+            yrange = (ymm + my_wcs['crval'][1]) * cy 
+            if (np.max([np.max(np.abs(xxrange)), np.max(np.abs(yrange))])) <= 3 * dtor:
+                doQuick = True
+    
+    # Quick version
+    if doQuick and not force_proj:
+        if my_wcs['coord_type'] == 'Helioprojective-Radial':
+            r = coord[1,:] * cy + halfpi
+            theta = (coord[0,:] - wcs['crval'][0]) * cx
+            coord[0,:] = r * np.sin(theta) / cx
+            coord[1,:] = r * np.cos(theta) / cy
+            
+            return coord
+        else:
+            coord[0,:] = coord[0,:] - my_wcs['crval'][0]         
+            coord[1,:] = coord[1,:] - my_wcs['crval'][1]
+            return coord
+            
+    phi0 = 0.
+    theta0 = 90.
+    if 'proj_names' in my_wcs:
+        for item in my_wcs['proj_names']:
+            if item == 'PV1_1':
+                idx = np.where(my_wcs['proj_names'] == item)[0]
+                phi0 = my_wcs['proj_values'][idx[0]]
+            if item == 'PV1_2':
+                idx = np.where(my_wcs['proj_names'] == item)[0]
+                phi0 = my_wcs['proj_values'][idx[0]]
+    if (phi0 != 0) or (theta0 != 90):
+        print ('Non-standard PVi_1 and/or PVi_2 values -- ignored') # so why did we bother checking?
+    
+    # Convert to rads
+    phi0, theta0 = phi0 * dtor, theta0 * dtor
+    
+    # Get the celestial longitude and latitude of the fiducial point.
+    alpha0, delta0 = my_wcs['crval'][0] * cx , my_wcs['crval'][1] * cy
+    
+    phip = 180
+    if delta0 > theta0: phip = 0
+    if 'proj_names' in my_wcs:
+        if 'LONPOLE' in my_wcs['proj_names']:
+            phip = my_wcs['proj_values'][np.where(my_wcs['proj_names'] == 'LONPOLE')][0]
+        if 'PV1_3' in my_wcs['proj_names']:
+            phip = my_wcs['proj_values'][np.where(my_wcs['proj_names'] == 'PV1_3')][0]
+    if (phip != 180) & (delta0 != halfpi):
+        print('Non standard LONPOLE value')
+    
+    phip = dtor * phip
+    
+    # Convert from celestial to native spherical coordinates.
+    alpha = cx * coord[0,:]
+    delta = cy * coord[1,:]
+    dalpha = alpha - alpha0
+    cos_dalpha = np.cos(dalpha)
+    sin_delta = np.sin(delta)
+    cos_delta = np.cos(delta)
+    phi = phip + np.arctan2(-cos_delta * np.sin(dalpha), sin_delta * np.cos(delta0) - cos_delta * np.sin(delta0) * cos_dalpha)
+    theta = np.arcsin(sin_delta * np.sin(delta0) + cos_delta * np.cos(delta0) * cos_dalpha)
+    
+    # Calculate the relative coords
+    r_theta = np.copy(theta)
+    w_good = np.where(r_theta > 0)
+    r_theta[w_good] = 1. / np.tan(theta[w_good])
+    x = r_theta * np.sin(phi)
+    y = r_theta * np.cos(phi)
+    
+    # Convert back to og units
+    coord[0,:] = x / cx    
+    coord[1,:] = y / cy
+    
+    if singlePt:
+        coord = coord.flatten()
+    
+    
     return coord
     
-
 def wcs_proj_azp(my_wcs, coord):
     dtor = np.pi / 180.
     halfpi = np.pi / 2
@@ -314,6 +436,108 @@ def wcs_proj_azp(my_wcs, coord):
     coord[1,:] = delta / cy
     return coord
 
+def wcs_inv_proj_azp(my_wcs, coord):
+    # Check shape of input array
+    singlePt = False
+    if len(coord.shape) == 1:
+        singlePt = True
+        coord = coord.reshape([2,1])
+    
+    
+    dtor = np.pi / 180.
+    halfpi = np.pi / 2
+    cx = cunit2rad[my_wcs['cunit'][0]]
+    cy = cunit2rad[my_wcs['cunit'][1]]
+    
+    phi0 = 0.
+    theta0 = 90.
+    if 'proj_names' in my_wcs:
+        for item in my_wcs['proj_names']:
+            if item == 'PV1_1':
+                idx = np.where(my_wcs['proj_names'] == item)[0]
+                phi0 = my_wcs['proj_values'][idx[0]]
+            if item == 'PV1_2':
+                idx = np.where(my_wcs['proj_names'] == item)[0]
+                phi0 = my_wcs['proj_values'][idx[0]]
+    if (phi0 != 0) or (theta0 != 90):
+        print ('Non-standard PVi_1 and/or PVi_2 values -- ignored') # so why did we bother checking?
+    
+    # Convert to rads
+    phi0, theta0 = phi0 * dtor, theta0 * dtor
+    
+    mu = 0.
+    gamma = 0.
+    if 'proj_names' in my_wcs:
+        for item in my_wcs['proj_names']:
+            if item == 'PV2_1':
+                idx = np.where(my_wcs['proj_names'] == item)[0]
+                mu = my_wcs['proj_values'][idx[0]]
+            if item == 'PV2_2':
+                idx = np.where(my_wcs['proj_names'] == item)[0]
+                gamma = my_wcs['proj_values'][idx[0]]
+    
+    # Convert gamma to radians
+    gamma = gamma  * dtor
+    
+    # Get the celestial longitude and latitude of the fiducial point.
+    alpha0, delta0 = my_wcs['crval'][0] * cx , my_wcs['crval'][1] * cy
+    
+    phip = 180
+    if delta0 > theta0: phip = 0
+    if 'proj_names' in my_wcs:
+        if 'LONPOLE' in my_wcs['proj_names']:
+            phip = my_wcs['proj_values'][np.where(my_wcs['proj_names'] == 'LONPOLE')][0]
+        if 'PV1_3' in my_wcs['proj_names']:
+            phip = my_wcs['proj_values'][np.where(my_wcs['proj_names'] == 'PV1_3')][0]
+    if (phip != 180) & (delta0 != halfpi):
+        print('Non standard LONPOLE value')
+    
+    phip = dtor * phip
+
+    # Convert from celestial to native spherical coords
+    alpha = cx * coord[0,:]
+    delta = cy * coord[1,:]
+    dalpha = alpha - alpha0
+    cos_dalpha = np.cos(dalpha)
+    sin_delta = np.sin(delta)
+    cos_delta = np.cos(delta)
+    phi = phip + np.arctan2(-cos_delta * np.sin(dalpha), sin_delta * np.cos(delta0) - cos_delta * np.sin(delta0) * cos_dalpha)
+    theta = np.arcsin(sin_delta * np.sin(delta0) + cos_delta * np.cos(delta0) * cos_dalpha)
+    
+    # Determine the latitude of divergence
+    if mu == 0:
+        thetax = 0
+    elif np.abs(mu) > 1:
+        thetax = np.arcsin(-1/mu)
+    else:
+        thetax = np.arcsin(-mu)
+    
+    # Calculate the relative coords
+    cos_theta = np.cos(theta)
+    if gamma == 0:
+        denom = mu + np.sin(theta)
+    else:
+        denom = mu + np.sin(theta) + cos_theta * np.cos(phi) * np.tan(gamma)
+    
+    w_good = np.where(denom !=0) or np.where(theta <=thetax) # inverted from IDL bc want good
+    if len(w_good[0]) > 0:
+        theta[w_good[0]] = (mu + 1) * cos_theta[w_good] / denom[w_good]
+    x = theta * np.sin(phi)
+    
+    if gamma == 0:
+        y = -theta * np.cos(phi)
+    else:
+        y = -theta * np.cos(phi) / np.cos(gamma)
+        
+    # Convert back to og units
+    coord[0,:] = x / cx    
+    coord[1,:] = y / cy
+    
+    if singlePt:
+        coord = coord.flatten()
+    
+    return coord
+
 def wcs_get_coord(my_wcs):
     # Assuming an appropriate header
     # ignoring distortion, associate, apply for now (139-152)
@@ -377,9 +601,39 @@ def wcs_get_coord(my_wcs):
     return coord    
     
     
+def wcs_get_pixel(my_wcs, coord,  doQuick=False, force_proj=False):
+    if isinstance(coord, list):
+        coord = np.array(coord)
+    # Check shape of input array
+    singlePt = False
+    if len(coord.shape) == 1:
+        singlePt = True
+        coord = coord.reshape([2,1])
     
+    # Don't think we need to reassign pix as same as coord?
+    if my_wcs['projection'] == 'TAN':
+        outpix = wcs_inv_proj_tan(my_wcs, coord)
+    elif my_wcs['projection'] == 'AZP':
+        outpix = wcs_inv_proj_azp(my_wcs, coord)
+    else:
+        print ('Other projections not ported')
+        print (Quit)
+        
+    # Skipping subtract ref values for non-spherical and de-app tablular
     
+    coord[0,:] = coord[0,:] / my_wcs['cdelt'][0]
+    coord[1,:] = coord[1,:] / my_wcs['cdelt'][1]
+    temp = np.copy(coord)
+    pc = my_wcs['pc']
+    coord = np.matmul(np.transpose(pc), coord)
     
+    # Add in reference pixel
+    coord[0,:] = coord[0,:] + my_wcs['crpix'][0] -1
+    coord[1,:] = coord[1,:] + my_wcs['crpix'][1] -1
+    
+    if singlePt:
+        coord = coord.flatten()
+    return coord
     
     
     

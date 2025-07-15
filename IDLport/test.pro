@@ -46,13 +46,7 @@ END
 
 
 
-
-
-
-
-
-
-PRO testP
+PRO testPSP
 ; PSP WISPR
 fileA = '/Users/kaycd1/wombat/fits/testing/psp_L2_wispr_20250610T000025_V0_1221.fits'
 fileB = '/Users/kaycd1/wombat/fits/testing/psp_L2_wispr_20250610T203026_V0_1221.fits'
@@ -107,8 +101,28 @@ end
 
 
 
-PRO testSP
-fileA = '/Users/kaycd1/wombat/fits/20241028_002330_d4c2A.fts'
-fileB = '/Users/kaycd1/wombat/fits/20241028_125330_d4c2A.fts'
-secchi_prep, [fileA, fileB], hdr, im
+PRO testCoords
+;fileA = '/Users/kaycd1/wombat/fits/testing/HI2A_20090301_000921_s4h2A.fts'
+fileA = '/Users/kaycd1/wombat/fits/20120712_172400_d4c2A.fts'
+secchi_prep, fileA, hdr, im
+
+myWCS = fitshead2wcs(hdr)
+coord = wcs_get_coord(myWCS)
+;help, coord
+
+A = [[-73.33168868, -11.9845013], [-73.33167242,  -11.91515925]]
+;A = [[-11572.8375855 , -9347.52313452 ],  [  -11573.080756 ,  -9332.87796162]]
+A = [0.,0.]
+print, A
+print, ''
+out = wcs_get_pixel(myWCS, A, force_proj=1)
+print, out
+
 END
+
+
+
+
+
+
+

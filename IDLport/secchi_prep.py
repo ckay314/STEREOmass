@@ -121,6 +121,7 @@ def secchi_prep(filesIn, outSize=None, silent=False):
             # No polarization for now
         elif det == 'COR2':
             im, hdr = cor_prep(im, hdr, outSize)
+             
             # No polarization for now
         elif det == 'HI1':
             im, hdr = hi_prep(im, hdr)

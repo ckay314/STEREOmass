@@ -145,53 +145,59 @@ def calcCMEmass(img, hdr, box=None, onlyNe=False, doPB=False):
     
     return mass, hdr
     
+if __name__ == '__main__':
 
-# COR2A test files
-#fileA = '/Users/kaycd1/wombat/fits/testing/COR2A_20241028_002330_d4c2A.fts'
-#fileB = '/Users/kaycd1/wombat/fits/testing/COR2A_20241028_125330_d4c2A.fts'
+    # COR2A test files
+    #fileA = '/Users/kaycd1/wombat/fits/testing/COR2A_20241028_002330_d4c2A.fts'
+    #fileB = '/Users/kaycd1/wombat/fits/testing/COR2A_20241028_125330_d4c2A.fts'
 
-# COR2B 
-fileA = '/Users/kaycd1/wombat/fits/testing/COR2B_20120712_162400_d4c2B.fts'
-fileB = '/Users/kaycd1/wombat/fits/testing/COR2B_20120712_185400_d4c2B.fts'
+    # COR2B 
+    #fileA = '/Users/kaycd1/wombat/fits/testing/COR2B_20120712_162400_d4c2B.fts'
+    #fileB = '/Users/kaycd1/wombat/fits/testing/COR2B_20120712_185400_d4c2B.fts'
 
-#COR1A
-#fileA = '/Users/kaycd1/wombat/fits/testing/COR1A_20121231_001000_n4c1A.fts'
-#fileB = '/Users/kaycd1/wombat/fits/testing/COR1A_20121231_011000_n4c1A.fts'
+    #COR1A
+    #fileA = '/Users/kaycd1/wombat/fits/testing/COR1A_20121231_001000_n4c1A.fts'
+    #fileB = '/Users/kaycd1/wombat/fits/testing/COR1A_20121231_011000_n4c1A.fts'
 
-# COR1B
-#fileA = '/Users/kaycd1/wombat/fits/testing/COR1B_20111114_001000_n4c1B.fts'
-#fileB = '/Users/kaycd1/wombat/fits/testing/COR1B_20111114_011000_n4c1B.fts'
+    # COR1B
+    #fileA = '/Users/kaycd1/wombat/fits/testing/COR1B_20111114_001000_n4c1B.fts'
+    #fileB = '/Users/kaycd1/wombat/fits/testing/COR1B_20111114_011000_n4c1B.fts'
 
-#HI1A
-#fileA = '/Users/kaycd1/wombat/fits/testing/HI1A_20100501_000901_s4h1A.fts'
-#fileB = '/Users/kaycd1/wombat/fits/testing/HI1A_20100501_164901_s4h1A.fts'
+    #HI1A
+    #fileA = '/Users/kaycd1/wombat/fits/testing/HI1A_20100501_000901_s4h1A.fts'
+    #fileB = '/Users/kaycd1/wombat/fits/testing/HI1A_20100501_164901_s4h1A.fts'
 
-#HI1B
-#fileA = '/Users/kaycd1/wombat/fits/testing/HI1B_20070801_012900_s4h1B.fts'
-#fileB = '/Users/kaycd1/wombat/fits/testing/HI1B_20070801_164900_s4h1B.fts'
+    #HI1B
+    #fileA = '/Users/kaycd1/wombat/fits/testing/HI1B_20070801_012900_s4h1B.fts'
+    #fileB = '/Users/kaycd1/wombat/fits/testing/HI1B_20070801_164900_s4h1B.fts'
 
-#HI2A
-#fileA = '/Users/kaycd1/wombat/fits/testing/HI2A_20090301_000921_s4h2A.fts'
-#fileB = '/Users/kaycd1/wombat/fits/testing/HI2A_20090301_180921_s4h2A.fts'
+    #HI2A
+    #fileA = '/Users/kaycd1/wombat/fits/testing/HI2A_20090301_000921_s4h2A.fts'
+    #fileB = '/Users/kaycd1/wombat/fits/testing/HI2A_20090301_180921_s4h2A.fts'
+   
+    #HI1A
+    fileA = '/Users/kaycd1/wombat/fits/20120713_004901_s4h1A.fts'
+    fileB = '/Users/kaycd1/wombat/fits/20120713_072901_s4h1A.fts'
 
-#HI2B
-#fileA = '/Users/kaycd1/wombat/fits/testing/HI2B_20130201_000921_s4h2B.fts'
-#fileB = '/Users/kaycd1/wombat/fits/testing/HI2B_20130201_100921_s4h2B.fts'
-
-
-# Python secchi_prep appears to match IDL within 0.005% 
-ims, hdrs = secchi_prep([fileA, fileB], outSize=([1024,1024]))
-# PSP WISPR
-#fileA = '/Users/kaycd1/wombat/fits/testing/psp_L2_wispr_20250610T000025_V0_1221.fits'
-#fileB = '/Users/kaycd1/wombat/fits/testing/psp_L2_wispr_20250610T203026_V0_1221.fits'
-#ims, hdrs = wispr_prep([fileA, fileB])
-
-diff = ims[1] - ims[0]
+    #HI2B
+    #fileA = '/Users/kaycd1/wombat/fits/testing/HI2B_20130201_000921_s4h2B.fts'
+    #fileB = '/Users/kaycd1/wombat/fits/testing/HI2B_20130201_100921_s4h2B.fts'
 
 
-mass, hdr = calcCMEmass(diff, hdrs[1])
-print(mass[111,444])
+    # Python secchi_prep appears to match IDL within 0.005% 
+    ims, hdrs = secchi_prep([fileA, fileB], outSize=([1024,1024]))
+    print(ims[0][500,500])
+    # PSP WISPR
+    #fileA = '/Users/kaycd1/wombat/fits/testing/psp_L2_wispr_20250610T000025_V0_1221.fits'
+    #fileB = '/Users/kaycd1/wombat/fits/testing/psp_L2_wispr_20250610T203026_V0_1221.fits'
+    #ims, hdrs = wispr_prep([fileA, fileB])
 
-fig = plt.figure()
-plt.imshow(np.log(np.abs(mass)) * np.sign(mass))
-plt.show()
+    diff = ims[1] - ims[0]
+
+
+    mass, hdr = calcCMEmass(diff, hdrs[1])
+    print(mass[111,444])
+
+    fig = plt.figure()
+    plt.imshow(np.log(np.abs(mass)) * np.sign(mass))
+    plt.show()
