@@ -107,16 +107,10 @@ fileA = '/Users/kaycd1/wombat/fits/20120712_172400_d4c2A.fts'
 secchi_prep, fileA, hdr, im
 
 myWCS = fitshead2wcs(hdr)
-coord = wcs_get_coord(myWCS)
-;help, coord
+pt = [-10873.3709868, -260.11013321]
+print, wcs_get_pixel(myWCS, pt )
 
-A = [[-73.33168868, -11.9845013], [-73.33167242,  -11.91515925]]
-;A = [[-11572.8375855 , -9347.52313452 ],  [  -11573.080756 ,  -9332.87796162]]
-A = [0.,0.]
-print, A
-print, ''
-out = wcs_get_pixel(myWCS, A, force_proj=1)
-print, out
+
 
 END
 

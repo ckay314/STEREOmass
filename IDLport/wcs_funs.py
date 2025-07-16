@@ -190,8 +190,8 @@ def wcs_proj_tan(my_wcs, coord, doQuick=False, force_proj=False):
             coord[1,:] = (np.sqrt(x**2 + y**2) - halfpi) / cy
             return coord
         else:
-            coord[0,:] = coord[0,:] + my_wcs['crval'][0]         
-            coord[1,:] = coord[1,:] + my_wcs['crval'][1]
+            coord[0,:] = coord[0,:] #+ my_wcs['crval'][0]         
+            coord[1,:] = coord[1,:] #+ my_wcs['crval'][1]
             return coord
         
     # Full version
@@ -274,8 +274,7 @@ def wcs_inv_proj_tan(my_wcs, coord, doQuick=False, force_proj=False):
             r = coord[1,:] * cy + halfpi
             theta = (coord[0,:] - wcs['crval'][0]) * cx
             coord[0,:] = r * np.sin(theta) / cx
-            coord[1,:] = r * np.cos(theta) / cy
-            
+            coord[1,:] = r * np.cos(theta) / cy            
             return coord
         else:
             coord[0,:] = coord[0,:] - my_wcs['crval'][0]         
@@ -297,7 +296,7 @@ def wcs_inv_proj_tan(my_wcs, coord, doQuick=False, force_proj=False):
     
     # Convert to rads
     phi0, theta0 = phi0 * dtor, theta0 * dtor
-    
+
     # Get the celestial longitude and latitude of the fiducial point.
     alpha0, delta0 = my_wcs['crval'][0] * cx , my_wcs['crval'][1] * cy
     
@@ -322,13 +321,12 @@ def wcs_inv_proj_tan(my_wcs, coord, doQuick=False, force_proj=False):
     cos_delta = np.cos(delta)
     phi = phip + np.arctan2(-cos_delta * np.sin(dalpha), sin_delta * np.cos(delta0) - cos_delta * np.sin(delta0) * cos_dalpha)
     theta = np.arcsin(sin_delta * np.sin(delta0) + cos_delta * np.cos(delta0) * cos_dalpha)
-    
     # Calculate the relative coords
     r_theta = np.copy(theta)
     w_good = np.where(r_theta > 0)
     r_theta[w_good] = 1. / np.tan(theta[w_good])
     x = r_theta * np.sin(phi)
-    y = r_theta * np.cos(phi)
+    y = -r_theta * np.cos(phi)
     
     # Convert back to og units
     coord[0,:] = x / cx    
@@ -601,7 +599,9 @@ def wcs_get_coord(my_wcs):
     return coord    
     
     
-def wcs_get_pixel(my_wcs, coord,  doQuick=False, force_proj=False):
+def wcs_get_pixel(my_wcs, coord,  doQuick=False, force_proj=False, noPC=False):
+    # believe that these input coords should be heliocartesian (or like wcs)
+    # and match the cunit in terms of arcsec...
     if isinstance(coord, list):
         coord = np.array(coord)
     # Check shape of input array
@@ -610,9 +610,8 @@ def wcs_get_pixel(my_wcs, coord,  doQuick=False, force_proj=False):
         singlePt = True
         coord = coord.reshape([2,1])
     
-    # Don't think we need to reassign pix as same as coord?
     if my_wcs['projection'] == 'TAN':
-        outpix = wcs_inv_proj_tan(my_wcs, coord)
+        outpix = wcs_inv_proj_tan(my_wcs, coord, doQuick=doQuick)
     elif my_wcs['projection'] == 'AZP':
         outpix = wcs_inv_proj_azp(my_wcs, coord)
     else:
@@ -621,11 +620,12 @@ def wcs_get_pixel(my_wcs, coord,  doQuick=False, force_proj=False):
         
     # Skipping subtract ref values for non-spherical and de-app tablular
     
-    coord[0,:] = coord[0,:] / my_wcs['cdelt'][0]
-    coord[1,:] = coord[1,:] / my_wcs['cdelt'][1]
-    temp = np.copy(coord)
-    pc = my_wcs['pc']
-    coord = np.matmul(np.transpose(pc), coord)
+    coord[0,:] = outpix[0,:] / my_wcs['cdelt'][0]
+    coord[1,:] = outpix[1,:] / my_wcs['cdelt'][1]
+    #temp = np.copy(coord)
+    if not noPC:
+        pc = my_wcs['pc']
+        coord = np.matmul(np.transpose(pc), coord)
     
     # Add in reference pixel
     coord[0,:] = coord[0,:] + my_wcs['crpix'][0] -1
@@ -634,9 +634,7 @@ def wcs_get_pixel(my_wcs, coord,  doQuick=False, force_proj=False):
     if singlePt:
         coord = coord.flatten()
     return coord
-    
-    
-    
+        
     
     
     

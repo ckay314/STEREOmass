@@ -19,9 +19,26 @@ coord = wcs_inv_proj_tan(myWCS, aCoord)
 print (aCoord)'''
 
 
+# Convert from heliocentric radial to heliocentric cartesian
+
+
+
+
 fileA = '/Users/kaycd1/wombat/fits/20120712_172400_d4c2A.fts'
 im, hdr = secchi_prep(fileA) 
-myWCS = fitshead2wcs(hdr[0])
-coord = np.array([[0,0], [1,2]])
+#print(hdr)
+'''myWCS = fitshead2wcs(hdr[0])
+coord = np.array([0,0])
 coord = wcs_get_pixel(myWCS, coord)
+print (coord)
+coord = np.array([995.83,0])
+coord = wcs_get_pixel(myWCS, coord)
+print (coord)
+coord = np.array([0,995.83])
+coord = wcs_get_pixel(myWCS, coord)'''
+
+myWCS = fitshead2wcs(hdr[0])
+pt = [-10873.3709868, -260.11013321]
+coord = wcs_get_pixel(myWCS, pt, doQuick = False)
+
 print (coord)
