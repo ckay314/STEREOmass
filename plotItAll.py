@@ -239,9 +239,7 @@ def scatter2histo2(p1, p2, p3, p4, axLabs, doLog=True, picName='temp.png', pLabs
 
     difRat2 = (p3-p4) / (0.5*(p3+p4))
     f3b.hist(difRat2, bins=bins[1], density=True, color=colors[1], ec='k')
-    
-    xA, xB = np.power(10,CORmassesA), np.power(10,CORmassesB)
-    
+        
     x = np.linspace(bins[0][0], bins[0][-1], 1000)
     ae3a, loce3a, scalee3a = stats.skewnorm.fit(difRat1)
     p3a = stats.skewnorm.pdf(x, ae3a, loce3a, scalee3a)
@@ -439,19 +437,20 @@ def setItUp():
     for key in GCSkeys:
         thisRes = res[key]
         myKeys = np.array([key for key in thisRes.GCSvals.keys()])
-        for i in range(len(thisRes.GCSmassesA)):
-            mA, mB = thisRes.GCSmassesA[i], thisRes.GCSmassesB[i]
-            myVel = thisRes.GCSvals[myKeys[i]][-1]
-            if (mA > 0)  & (mB > 0):
-                pGCSmassesA.append(mA)
-                pGCSmassesB.append(mB)
-                pGCSpixA.append(thisRes.GCSpixsA[i])
-                pGCSpixB.append(thisRes.GCSpixsB[i])
-                pGCSdates.append(thisRes.CMEtimeDT)
-                if myVel != 'None':
-                    pGCSvels.append(float(myVel))
-                    pGCSidx.append(counter)
-                counter += 1
+        if (isinstance(thisRes.GCSmassesA,list)) & (isinstance(thisRes.GCSmassesB, list)):
+            for i in range(len(thisRes.GCSmassesA)):
+                mA, mB = thisRes.GCSmassesA[i], thisRes.GCSmassesB[i]
+                myVel = thisRes.GCSvals[myKeys[i]][-1]
+                if (mA > 0)  & (mB > 0):
+                    pGCSmassesA.append(mA)
+                    pGCSmassesB.append(mB)
+                    pGCSpixA.append(thisRes.GCSpixsA[i])
+                    pGCSpixB.append(thisRes.GCSpixsB[i])
+                    pGCSdates.append(thisRes.CMEtimeDT)
+                    if myVel != 'None':
+                        pGCSvels.append(float(myVel))
+                        pGCSidx.append(counter)
+                    counter += 1
      
     global cgGCSmassesA, cgGCSmassesB, cgCORmassesA, cgCORmassesB, cgvelsA, cgvelsB            
     cgGCSmassesA, cgGCSmassesB = [], []
@@ -488,8 +487,10 @@ def setItUp():
     # |---------------------------------------|
     global dpTimes, dpMasses, dpHeightsA, dpHeightsB, dpLons
     global dpSepA, dpSepB, dpPMA, dpPHA, dpPMB, dpPHB, dpGCSlons, dpLatsA, dpLatsB 
+    global dpPVelsA, dpPVelsB, dpVelsA, dpVelsB
     dpTimes, dpMasses, dpHeightsA, dpHeightsB, dpLons, dpLatsA, dpLatsB = [], [], [], [], [], [], []
     dpSepA, dpSepB, dpPMA, dpPHA, dpPMB, dpPHB, dpLons  = [], [], [], [], [], [], []
+    dpPVelsA, dpPVelsB, dpVelsA, dpVelsB = [], [], [], []
     for key in CORkeys:
         thisRes = res[key]
         if thisRes.deprojTimes[0]:
@@ -510,6 +511,18 @@ def setItUp():
             dpLatsA.append(thisRes.deprojLatA)
             dpLatsB.append(thisRes.deprojLatB)
             
+            dpPVelsA.append(thisRes.CORSETvelMA)
+            dpPVelsB.append(thisRes.CORSETvelMB)
+            sclA = np.abs(thisRes.deprojHeightsA.astype(float)/thisRes.projHeightsA.astype(float))
+            sclA = np.mean(sclA[np.isfinite(sclA)])
+            if sclA > 3: sclA = 1
+            sclB = np.abs(thisRes.deprojHeightsB.astype(float)/thisRes.projHeightsB.astype(float))
+            sclB = np.mean(sclB[np.isfinite(sclB)])
+            if sclB > 3: sclB = 1
+            dpVelsA.append(thisRes.CORSETvelMA*sclA)
+            dpVelsB.append(thisRes.CORSETvelMB*sclB)
+            
+            
             if len(thisRes.GCSvals) > 0:
                 theseGLons = []
                 for name in thisRes.GCSvals.keys():
@@ -520,8 +533,11 @@ def setItUp():
 
     global CdpTimes, CdpMassesA, CdpMassesB, CdpHeightsA, CdpHeightsB, CdpLons
     global CdpSepA, CdpSepB, CdpPMA, CdpPHA, CdpPMB, CdpPHB, CdpGCSlons, CdpLatsA, CdpLatsB 
+    global CdpPVelsA, CdpPVelsB, CdpVelsA, CdpVelsB
     CdpTimes, CdpMassesA, CdpMassesB, CdpHeightsA, CdpHeightsB, CdpLons, CdpLatsA, CdpLatsB = [], [], [], [], [], [], [], []
     CdpSepA, CdpSepB, CdpPMA, CdpPHA, CdpPMB, CdpPHB, CdpLons  = [], [], [], [], [], [], []
+    CdpPVelsA, CdpPVelsB, CdpVelsA, CdpVelsB = [], [], [], []
+    
     for key in CORkeys:
         thisRes = res[key]
         if thisRes.CdeprojTimes[0]:
@@ -542,6 +558,17 @@ def setItUp():
             CdpPHB.append(thisRes.CprojHeightsB.astype(float))
             CdpLatsA.append(thisRes.CdeprojLatA)
             CdpLatsB.append(thisRes.CdeprojLatB)
+            
+            CdpPVelsA.append(thisRes.CORSETvelMA)
+            CdpPVelsB.append(thisRes.CORSETvelMB)
+            sclA = np.abs(thisRes.CdeprojHeightsA.astype(float)/thisRes.CprojHeightsA.astype(float))
+            sclA = np.mean(sclA[np.isfinite(sclA)])
+            if sclA > 3: sclA = 1
+            sclB = np.abs(thisRes.CdeprojHeightsB.astype(float)/thisRes.CprojHeightsB.astype(float))
+            sclB = np.mean(sclB[np.isfinite(sclB)])
+            if sclB > 3: sclB = 1
+            CdpVelsA.append(thisRes.CORSETvelMA*sclA)
+            CdpVelsB.append(thisRes.CORSETvelMB*sclB)
             
             if len(thisRes.GCSvals) > 0:
                 CtheseGLons = []
@@ -575,7 +602,7 @@ def setItUp():
             # Get basic corset values (mass + lat from CPA)
             #compMasses['CORA'].append(thisRes.CORSETmassMA)
             compMasses['CORA'].append(np.max(thisRes.CORSETmassesA))
-            compMasses['CORB'].append(thisRes.CORSETmassMB)
+            compMasses['CORB'].append(np.max(thisRes.CORSETmassMB))
             # assume PoS so CPA 
             latA = 90 - thisRes.CORSETcpaMA
             latB = 90 - thisRes.CORSETcpaMB
@@ -636,38 +663,46 @@ def setItUp():
             
             # check if has GCS values
             if key in GCSkeys:
-                compHasGCS.append(counter)
-                # GCS values
-                lonsG = []
-                latsG = []
+                if (isinstance(thisRes.GCSmassesA,list)) & (isinstance(thisRes.GCSmassesB, list)):
+                    compHasGCS.append(counter)
+                    # GCS values
+                    lonsG = []
+                    latsG = []
                 
-                for gKey in thisRes.GCSvals.keys():
-                    lonsG.append((float(thisRes.GCSvals[gKey][1])+360)%360)
-                    latsG.append(float(thisRes.GCSvals[gKey][0]))
-                massAG = np.array(thisRes.GCSmassesA)
-                massAG = massAG[np.where(massAG > 0)] 
-                massBG = np.array(thisRes.GCSmassesB)
-                massBG = massBG[np.where(massBG > 0)] 
+                    for gKey in thisRes.GCSvals.keys():
+                        lonsG.append((float(thisRes.GCSvals[gKey][1])+360)%360)
+                        latsG.append(float(thisRes.GCSvals[gKey][0]))
+                
+                    massAG = np.array(thisRes.GCSmassesA)
+                    massAG = massAG[np.where(massAG > 0)] 
+                    massBG = np.array(thisRes.GCSmassesB)
+                    massBG = massBG[np.where(massBG > 0)] 
                     
-                # Need to check if -180 to 180 better than 0 to 360    
-                lonsAlt = np.copy(lonsG)
-                lonsAlt[np.where(lonsAlt > 180)] -= 360
-                if np.std(lonsAlt) < np.std(lonsG):
-                    lonsG = lonsAlt
-                if len(lonsG) > 1:
-                    lonsG = np.array(lonsG)
-                    medLonG = np.median(lonsG)
-                    shiftLons = lonsG - medLonG
-                    shiftLons[np.where(shiftLons > 180)] -= 360
-                    shiftLons[np.where(shiftLons < -180)] += 360
-                    meanLonG = np.mean(shiftLons) + medLonG
+                    # Need to check if -180 to 180 better than 0 to 360    
+                    lonsAlt = np.copy(lonsG)
+                    lonsAlt[np.where(lonsAlt > 180)] -= 360
+                    if np.std(lonsAlt) < np.std(lonsG):
+                        lonsG = lonsAlt
+                    if len(lonsG) > 1:
+                        lonsG = np.array(lonsG)
+                        medLonG = np.median(lonsG)
+                        shiftLons = lonsG - medLonG
+                        shiftLons[np.where(shiftLons > 180)] -= 360
+                        shiftLons[np.where(shiftLons < -180)] += 360
+                        meanLonG = np.mean(shiftLons) + medLonG
+                    else:
+                        meanLonG = lonsG[0]
+                    compMasses['GCSA'].append(np.mean(massAG))
+                    compMasses['GCSB'].append(np.mean(massBG))
+                    compLons['GCSA'].append(meanLonG)
+                    compLats['GCSA'].append(np.mean(latsG))
+                    compLats['GCSB'].append(np.mean(latsG))
                 else:
-                    meanLonG = lonsG[0]
-                compMasses['GCSA'].append(np.mean(massAG))
-                compMasses['GCSB'].append(np.mean(massBG))
-                compLons['GCSA'].append(meanLonG)
-                compLats['GCSA'].append(np.mean(latsG))
-                compLats['GCSB'].append(np.mean(latsG))
+                    compMasses['GCSA'].append(None)
+                    compMasses['GCSB'].append(None)
+                    compLons['GCSA'].append(None)
+                    compLats['GCSA'].append(None)
+                    compLats['GCSB'].append(None)
             else:
                 compMasses['GCSA'].append(None)
                 compMasses['GCSB'].append(None)
@@ -1028,6 +1063,7 @@ if plotAll:
     ff1a.set_aspect('equal')
     #ff1a.set_xticks([0,20,40])
 
+    dlon = 30
     for ff in allffs:
         x, y = pairs[i][0], pairs[i][1]
         lonDifs = x - y
@@ -1038,8 +1074,8 @@ if plotAll:
                 else:
                     y[j] += 360
         ff.plot([ll, ul], [ll, ul], 'k--', zorder=0, alpha=0.75)
-        ff.plot([ll, ul], [ll+20, ul+20], 'k--', zorder=0, alpha=0.4)
-        ff.plot([ll, ul], [ll-20, ul-20], 'k--', zorder=0, alpha=0.4)
+        ff.plot([ll, ul], [ll+dlon, ul+dlon], 'k--', zorder=0, alpha=0.4)
+        ff.plot([ll, ul], [ll-dlon, ul-dlon], 'k--', zorder=0, alpha=0.4)
         ff.scatter(x,y, marker=mkr, c=c1sat)
         i +=1
     
@@ -1052,8 +1088,11 @@ if plotAll:
     f1a.set_xlim(ll,ul)
     f1a.set_ylim(ll,ul)
     f1a.set_aspect('equal')
+    dlat = 10
     for f in allfs:
         f.plot([ll, ul], [ll, ul], 'k--', zorder=0, alpha=0.75)
+        f.plot([ll, ul], [ll+dlat, ul+dlat], 'k--', zorder=0, alpha=0.4)
+        f.plot([ll, ul], [ll-dlat, ul-dlat], 'k--', zorder=0, alpha=0.4)
     
     toptits = ['CORSET B', 'GCS', 'Deproj1 A', 'Deproj1 B' 'Deproj2 A', 'deproj2 B']    
     righttits = ['GCS', 'Deproj1 A', 'Deproj1 B', 'Deproj2 A', 'Deproj2 B', 'CORSET\nA']    
@@ -1207,7 +1246,8 @@ if plotAll:
 # |---------------------------------------|
 # |------------ Mass Growth --------------|
 # |---------------------------------------|
-if True:
+# need to downselect to *good* cases to do this proper
+if False:
     
     for key in CORkeys:
         print (key)
@@ -1235,7 +1275,533 @@ if True:
             plt.close()
                 
         #print (sd)
-                
     plt.show()
+ 
+            
+# |---------------------------------------|
+# |------------ Compo Histo --------------|
+# |---------------------------------------|
+if plotAll:
+    fig = plt.figure(constrained_layout=True, figsize=(10,10))
+    gs = fig.add_gridspec(3, 3, hspace=0, wspace=0)
+    f1a = fig.add_subplot(gs[0,0]) 
+    f1b = fig.add_subplot(gs[0,1], sharex=f1a, sharey=f1a) 
+    f1c = fig.add_subplot(gs[0,2], sharex=f1a, sharey=f1a) 
+    f2a = fig.add_subplot(gs[1,0], sharex=f1a, sharey=f1a) 
+    f2b = fig.add_subplot(gs[1,1], sharex=f1a, sharey=f1a) 
+    f2c = fig.add_subplot(gs[1,2], sharex=f1a, sharey=f1a) 
+    f3a = fig.add_subplot(gs[2,0], sharex=f1a, sharey=f1a) 
+    f3b = fig.add_subplot(gs[2,1], sharex=f1a, sharey=f1a) 
+    f3c = fig.add_subplot(gs[2,2], sharex=f1a, sharey=f1a) 
+    
+    allfs = [f1a, f1b, f1c, f2a, f2b, f2c, f3a, f3b, f3c]
+    rts = [f1c, f2c, f3c]
+    lts = [f1a, f2a, f3a]
+    notBots = [f1a, f1b, f1c, f2a, f2b, f2c]
+    
+    massCORA = np.log10(np.array(CORmassesA)*1e15) 
+    massCORB = np.log10(np.array(CORmassesB)*1e15)
+    massGCSA = np.log10(np.array(GCSmassesMA)*1e15)
+    massGCSB = np.log10(np.array(GCSmassesMB)*1e15)
+    
+    massDP1, massDP2A, massDP2B = [], [], []
+    for key in CORkeys:
+            thisRes = res[key]
+            # Check if had matched A/B and could deproj
+            if thisRes.deprojTimes[0]:
+                maxIdx = np.where(thisRes.deprojMasses == np.max(thisRes.deprojMasses))[0]
+                massDP1.append(thisRes.deprojMasses[maxIdx[0]])
+                
+                maxIdxA = np.where(thisRes.CdeprojMassesA == np.max(thisRes.CdeprojMassesA))[0]
+                maxIdxB = np.where(thisRes.CdeprojMassesB == np.max(thisRes.CdeprojMassesB))[0]
+                massDP2A.append(thisRes.CdeprojMassesA[maxIdxA[0]])
+                massDP2B.append(thisRes.CdeprojMassesB[maxIdxB[0]])
+    massDP1 = np.array(massDP1)
+    massDP2A = np.array(massDP2A)
+    massDP2B = np.array(massDP2B)
+    massDP1 = np.log10(np.array(massDP1[np.where(massDP1 > 0)])*1e15) 
+    massDP2A = np.log10(np.array(massDP2A[np.where(massDP2A > 0)])*1e15) 
+    massDP2B = np.log10(np.array(massDP2B[np.where(massDP2B > 0)])*1e15)
+    
+    # read in lasco
+    data = np.genfromtxt('fromAngelos/clean.list', dtype=None, skip_header=1)
+    massCO = []
+    widCO  = []
+    for i in range(len(data)):
+        massCO.append(data[i][13])
+        widCO.append(data[i][3])
+    widCO = np.array(widCO)
+    massCO = np.log10(np.array(massCO))
+    subMassCO = massCO[np.where(widCO > 80.)]
+    
+    bins1 = np.linspace(13,17,21)
+    f1a.set_xlim([13,17])
+    f1a.hist(massCO, bins=bins1, density=True, color='#696969', ec='k')
+    f1b.hist(massCORA, bins=bins1, density=True, color=cCORA, ec='k')
+    f1c.hist(massCORB, bins=bins1, density=True, color=cCORB, ec='k')
+    f2a.hist(subMassCO, bins=bins1, density=True, color='darkgray', ec='k')
+    f2b.hist(massGCSA, bins=bins1, density=True, color=cGCSA, ec='k')
+    f2c.hist(massGCSB, bins=bins1, density=True, color=cGCSB, ec='k')
+    f3a.hist(massDP1, bins=bins1, density=True, color='#6f10be', ec='k')
+    f3b.hist(massDP2A, bins=bins1, density=True, color='#AA4499', ec='k')
+    f3c.hist(massDP2B, bins=bins1, density=True, color='#367cc3', ec='k')
+    
+    f1a.text(0.05, 0.9, 'CDAW', transform=f1a.transAxes, fontsize=12, ha='left', va='center', c='#696969')
+    f1a.text(0.05, 0.81, 'N: '+str(len(massCO)), transform=f1a.transAxes, fontsize=12, ha='left', va='center', c='#696969')
+    f1b.text(0.05, 0.9, 'CORSET A', transform=f1b.transAxes, fontsize=12, ha='left', va='center', c=cCORA)
+    f1b.text(0.05, 0.81, 'N: '+str(len(massCORA)), transform=f1b.transAxes, fontsize=12, ha='left', va='center', c=cCORA)
+    f1c.text(0.05, 0.9, 'CORSET B', transform=f1c.transAxes, fontsize=12, ha='left', va='center', c=cCORB)
+    f1c.text(0.05, 0.81, 'N: '+str(len(massCORB)), transform=f1c.transAxes, fontsize=12, ha='left', va='center', c=cCORB)
+    
+    f2a.text(0.05, 0.9, 'CDAW >80$^{\\circ}$', transform=f2a.transAxes, fontsize=12, ha='left', va='center', c='darkgray')
+    f2a.text(0.05, 0.81, 'N: '+str(len(subMassCO)), transform=f2a.transAxes, fontsize=12, ha='left', va='center', c='darkgray')
+    f2b.text(0.05, 0.9, 'GCS A', transform=f2b.transAxes, fontsize=12, ha='left', va='center', c=cGCSA)
+    f2b.text(0.05, 0.81, 'N: '+str(len(massGCSA)), transform=f2b.transAxes, fontsize=12, ha='left', va='center', c=cGCSA)
+    f2c.text(0.05, 0.9, 'GCS B', transform=f2c.transAxes, fontsize=12, ha='left', va='center', c=cGCSB)
+    f2c.text(0.05, 0.81, 'N: '+str(len(massGCSB)), transform=f2c.transAxes, fontsize=12, ha='left', va='center', c=cGCSB)
+    
+    f3a.text(0.05, 0.9, 'Deproj1', transform=f3a.transAxes, fontsize=12, ha='left', va='center', c='#6f10be')
+    f3a.text(0.05, 0.81, 'N: '+str(len(massDP1)), transform=f3a.transAxes, fontsize=12, ha='left', va='center', c='#6f10be')
+    f3b.text(0.05, 0.9, 'Deproj2 A', transform=f3b.transAxes, fontsize=12, ha='left', va='center', c='#AA4499')
+    f3b.text(0.05, 0.81, 'N: '+str(len(massDP2A)), transform=f3b.transAxes, fontsize=12, ha='left', va='center', c='#AA4499')
+    f3c.text(0.05, 0.9, 'Deproj2 B', transform=f3c.transAxes, fontsize=12, ha='left', va='center', c='#367cc3')
+    f3c.text(0.05, 0.81, 'N: '+str(len(massDP2B)), transform=f3c.transAxes, fontsize=12, ha='left', va='center', c='#367cc3')
+                   
+    for f in allfs:
+        xl = f.get_xlim()
+        yl = f.get_ylim()
+        for y in [0.5, 1]:
+            f.plot(xl, [y, y], 'k--', alpha=0.25, zorder=0)
+        for x in [14, 15, 16]:
+            f.plot([x,x], yl, 'k--', alpha=0.25, zorder=0)
+        if f in rts:
+            f.tick_params(labelleft=False)   
+        if f in notBots:
+            f.tick_params(labelbottom=False)   
+        if f in lts:
+            f.set_ylabel('Prob. Density')
+        if f in [f3a, f3b, f3c]:
+            f.set_xlabel('Log Mass (g)')
+    
+        f.set_xlim(xl)
+        f.set_ylim(yl)
+    plt.savefig(myFold+'MegaMassHisto.png')
+    #plt.show()
+    
+    
+# |---------------------------------------|
+# |----------- MV correlation ------------|
+# |---------------------------------------|
+# need to downselect to *good* cases to do this proper
+if False:
+    fig = plt.figure(constrained_layout=True, figsize=(10,10))
+    gs = fig.add_gridspec(2, 2, hspace=0, wspace=0)
+    f1a = fig.add_subplot(gs[0,0]) 
+    f1b = fig.add_subplot(gs[0,1], sharex=f1a, sharey=f1a) 
+    f2a = fig.add_subplot(gs[1,0], sharex=f1a, sharey=f1a) 
+    f2b = fig.add_subplot(gs[1,1], sharex=f1a, sharey=f1a) 
+    masses = []
+    for x in dpMasses:
+        masses.append(np.max(x))
+    f1a.scatter(dpVelsA, masses)
+    f1b.scatter(dpVelsB, masses)
+    f2a.scatter(CdpVelsA, masses)
+    f2b.scatter(CdpVelsB, masses)
+    
+    plt.show()
+                   
+                   
+# |---------------------------------------|
+# |------------ Circle Plots -------------|
+# |---------------------------------------|
+if plotAll:
+    dtor = np.pi / 180.
+    fig = plt.figure(constrained_layout=True, figsize=(7,11))
+    gs = fig.add_gridspec(3, 2)
+    f1a = fig.add_subplot(gs[0,0]) 
+    f1b = fig.add_subplot(gs[0,1], sharex=f1a, sharey=f1a) 
+    f2a = fig.add_subplot(gs[1,0], sharex=f1a, sharey=f1a) 
+    f2b = fig.add_subplot(gs[1,1], sharex=f1a, sharey=f1a) 
+    f3a = fig.add_subplot(gs[2,0], sharex=f1a, sharey=f1a) 
+    f3b = fig.add_subplot(gs[2,1], sharex=f1a, sharey=f1a) 
+   
+    allfs = [f1a, f1b, f2a, f2b, f3a, f3b]
+    lefts = [f1a,  f2a, f3a]
+    rights = [f1b, f2b, f3b]
+   
+    deg10s = np.array([np.pi/2 - 15*dtor*i for i in range(13)])
+   
+    thetas = np.linspace(0, 2*np.pi, 180)
+    cxs = np.cos(thetas)
+    czs = np.sin(thetas)
+    for f in allfs:
+        f.plot(cxs, czs, 'k')
+        for i in range(len(deg10s)):
+            myy = np.sin(deg10s[i])
+            myx = np.cos(deg10s[i])
+            f.plot([-myx, myx], [myy, myy], 'k--', alpha=0.1, zorder=0)
+            f.plot([myy, myy], [-myx, myx], 'k--', alpha=0.1, zorder=0)
+            
+        f.axis('off')
+        f.set_aspect('equal')
+    
+    for f in lefts:
+        f.text(-0.05, 0.5, 'E', transform=f.transAxes, fontsize=16, ha='left', va='center', c='k')
+        f.text(1.18, 0.5, 'W', transform=f.transAxes, fontsize=16, ha='center', va='center', c='k')
+    for f in rights:
+        f.text(1.05, 0.5, 'E', transform=f.transAxes, fontsize=16, ha='left', va='center', c='k')
+    for f in allfs:
+        f.text(0.5, 1.05, 'N', transform=f.transAxes, fontsize=16, ha='center', va='center', c='k')
+        f.text(0.5, -0.05, 'S', transform=f.transAxes, fontsize=16, ha='center', va='center', c='k')
+    f1a.text(1.18, 1.05, 'GCS', transform=f1a.transAxes, fontsize=16, ha='center', va='center', c='#696969')
+    f2a.text(1.18, 1.05, 'Deproj1', transform=f2a.transAxes, fontsize=16, ha='center', va='center', c='#6f10be')
+    f3a.text(1.18, 1.05, 'Deproj2', transform=f3a.transAxes, fontsize=16, ha='center', va='center', c='#367cc3')
+        
+    
+   
+    # GCS
+    '''mod = 'GCSA'
+    lats = compLats[mod][compHasGCS]
+    lons = compLons[mod][compHasGCS]'''
+    lats = []
+    lons = []
+    # check if has GCS values
+    for key in GCSkeys:
+        thisRes = res[key]
+        lonsG = []
+        latsG = []
+        
+        for gKey in thisRes.GCSvals.keys():
+            lonsG.append((float(thisRes.GCSvals[gKey][1])+360)%360)
+            latsG.append(float(thisRes.GCSvals[gKey][0]))
+        massAG = np.array(thisRes.GCSmassesA)
+        massAG = massAG[np.where(massAG > 0)] 
+        massBG = np.array(thisRes.GCSmassesB)
+        massBG = massBG[np.where(massBG > 0)] 
+            
+        # Need to check if -180 to 180 better than 0 to 360    
+        lonsAlt = np.copy(lonsG)
+        lonsAlt[np.where(lonsAlt > 180)] -= 360
+        if np.std(lonsAlt) < np.std(lonsG):
+            lonsG = lonsAlt
+        if len(lonsG) > 1:
+            lonsG = np.array(lonsG)
+            medLonG = np.median(lonsG)
+            shiftLons = lonsG - medLonG
+            shiftLons[np.where(shiftLons > 180)] -= 360
+            shiftLons[np.where(shiftLons < -180)] += 360
+            meanLonG = np.mean(shiftLons) + medLonG
+        else:
+            meanLonG = lonsG[0]
+        lons.append(meanLonG)
+        lats.append(np.mean(latsG))
+    lats = np.array(lats)
+    lons = np.array(lons)
+
+        
+        
+    xs, ys, zs = [], [], []
+    for i in range(len(lats)):
+        xs.append(np.cos(lons[i]*dtor)*np.cos(lats[i]*dtor))
+        zs.append(np.sin(lats[i]*dtor))
+        ys.append(np.sin(lons[i]*dtor)*np.cos(lats[i]*dtor))
+    xs = np.array(xs)
+    ys = np.array(ys)
+    zs = np.array(zs)
+    front = np.where(ys >= 0)[0]
+    back = np.where(ys < 0)[0]
+    f1a.scatter(xs[front], zs[front], c='#696969')    
+    f1b.scatter(-xs[back], zs[back], c='#696969')
+   
+   
+    # Deproj 1
+    mod = 'DP1A'
+    lats = compLats[mod]
+    lons = compLons[mod]
+    xs = np.cos(lons*dtor)*np.cos(lats*dtor)
+    zs = np.sin(lats*dtor)
+    ys = np.sin(lons*dtor)*np.cos(lats*dtor)
+    front = np.where(ys >= 0)[0]
+    back = np.where(ys < 0)[0]
+    f2a.scatter(xs[front], zs[front], c='#6f10be')    
+    f2b.scatter(-xs[back], zs[back], c='#6f10be')
+   
+    # Deproj 2
+    mod = 'DP2A'
+    lats = compLats[mod]
+    lons = compLons[mod]
+    xs = np.cos(lons*dtor)*np.cos(lats*dtor)
+    zs = np.sin(lats*dtor)
+    ys = np.sin(lons*dtor)*np.cos(lats*dtor)
+    front = np.where(ys >= 0)[0]
+    back = np.where(ys < 0)[0]
+    f3a.scatter(xs[front], zs[front], c='#367cc3')    
+    f3b.scatter(-xs[back], zs[back], c='#367cc3')
+    #plt.show()
+    plt.savefig(myFold+'CirclePlots.png')
+    
+
+# |---------------------------------------|
+# |------------- Separation --------------|
+# |---------------------------------------|
+if plotAll:
+    satSep = []
+    posSepA1, posSepB1 = [], []
+    hRatioA1, hRatioB1 = [], []
+    mRatioA1, mRatioB1 = [], []
+    posSepA2, posSepB2 = [], []
+    hRatioA2, hRatioB2 = [], []
+    mRatioA2, mRatioB2 = [], []
+    for key in CORkeys:
+        thisRes = res[key]
+        if thisRes.deprojTimes[0]:
+            # deproj 1
+            maxIdx = np.where(thisRes.deprojMasses == np.max(thisRes.deprojMasses))[0]
+            maxIdx = np.max(maxIdx)
+            sep = np.abs(thisRes.depSatLonsB[maxIdx] - thisRes.depSatLonsA[maxIdx])
+            if sep > 180:
+                sep = 360 - sep
             
             
+            phAs = thisRes.projHeightsA.astype(float)
+            phBs = thisRes.projHeightsB.astype(float)
+            dphAs = thisRes.deprojHeightsA.astype(float)
+            dphBs = thisRes.deprojHeightsB.astype(float)
+            pMAs  = thisRes.projMassesA
+            pMBs  = thisRes.projMassesB
+            dpMs  = thisRes.deprojMasses
+            
+            # check for zeros
+            if (phAs[maxIdx] == 0) or (phBs[maxIdx] == 0):
+                newIdxs = np.where((phAs > 0) & (phAs < 35) & (phBs >0) & (phBs < 35))[0]
+                if len(newIdxs) > 0:
+                    maxIdx = np.max(newIdxs)
+                else:
+                    maxIdx = -1
+            
+            if maxIdx != -1:
+                satSep.append(sep)
+                posSepA1.append(thisRes.deprojSepA[maxIdx])
+                posSepB1.append(thisRes.deprojSepB[maxIdx])
+                hRatioA1.append(np.abs(phAs[maxIdx] / dphAs[maxIdx]))
+                hRatioB1.append(np.abs(phBs[maxIdx] / dphBs[maxIdx]))
+                mRatioA1.append(pMAs[maxIdx] / dpMs[maxIdx])
+                mRatioB1.append(pMBs[maxIdx] / dpMs[maxIdx])
+                
+            # deproj 2
+            maxIdxA = np.where(thisRes.CdeprojMassesA == np.max(thisRes.CdeprojMassesA))[0]
+            maxIdxA = np.max(maxIdxA)
+            maxIdxB = np.where(thisRes.CdeprojMassesB == np.max(thisRes.CdeprojMassesB))[0]
+            maxIdxB = np.max(maxIdxB)
+            maxIdx = np.max([maxIdxA, maxIdxB])
+            
+            phAs = thisRes.CprojHeightsA.astype(float)
+            phBs = thisRes.CprojHeightsB.astype(float)
+            dphAs = thisRes.CdeprojHeightsA.astype(float)
+            dphBs = thisRes.CdeprojHeightsB.astype(float)
+            pMAs  = thisRes.CprojMassesA
+            pMBs  = thisRes.CprojMassesB
+            dpMAs  = thisRes.CdeprojMassesA
+            dpMBs  = thisRes.CdeprojMassesB
+            
+            # check for zeros
+            if (phAs[maxIdx] == 0) or (phBs[maxIdx] == 0):
+                newIdxs = np.where((phAs > 0) & (phAs < 35) & (phBs >0) & (phBs < 35))[0]
+                if len(newIdxs) > 0:
+                    maxIdx = np.max(newIdxs)
+                else:
+                    maxIdx = -1
+            
+            if maxIdx != -1:
+                #satSep.append(sep)
+                posSepA2.append(thisRes.CdeprojSepA[maxIdx])
+                posSepB2.append(thisRes.CdeprojSepB[maxIdx])
+                hRatioA2.append(np.abs(phAs[maxIdx] / dphAs[maxIdx]))
+                hRatioB2.append(np.abs(phBs[maxIdx] / dphBs[maxIdx]))
+                mRatioA2.append(pMAs[maxIdx] / dpMAs[maxIdx])
+                mRatioB2.append(pMBs[maxIdx] / dpMBs[maxIdx])
+            
+    
+    fig = plt.figure(constrained_layout=True, figsize=(10,5))
+    gs = fig.add_gridspec(1, 2)
+    f1 = fig.add_subplot(gs[0,0])   
+    f2 = fig.add_subplot(gs[0,1], sharex=f1, sharey=f1)
+    f1.scatter(satSep, posSepA1, c=mRatioA1)
+    f1.scatter(satSep, posSepB1, c=mRatioB1)
+    f2.scatter(satSep, posSepA2, c=mRatioA2)
+    f2.scatter(satSep, posSepB2, c=mRatioB2)
+    plt.show()
+
+
+# |---------------------------------------|
+# |---------- Mass Prof Redux ------------|
+# |---------------------------------------|
+if plotAll:
+    nowKey = '20120712_165400'
+    myRes = res[nowKey]
+    fig = plt.figure(constrained_layout=True, figsize=(5,5))
+    gs = fig.add_gridspec(1, 1)
+    f1 = fig.add_subplot(gs[0,0])   
+    
+    for i in range(len(myRes.GCSprofHtsA)):
+        f1.plot(myRes.GCSprofHtsA[i].astype(float), myRes.GCSprofMassA[i].astype(float), '--', c=cGCSA, lw=1.5)
+        f1.scatter(myRes.GCSprofHtsA[i].astype(float), myRes.GCSprofMassA[i].astype(float), c=cGCSA)
+    for i in range(len(myRes.GCSprofHtsB)):
+        f1.plot(myRes.GCSprofHtsB[i].astype(float), myRes.GCSprofMassB[i].astype(float), '--', c=cGCSB, lw=1.5)
+        f1.scatter(myRes.GCSprofHtsB[i].astype(float), myRes.GCSprofMassB[i].astype(float), c=cGCSB)
+    f1.plot(myRes.CORSETheightsA, myRes.CORSETmassesA, 'r--', lw=2, zorder=10)
+    f1.plot(myRes.CORSETheightsB, myRes.CORSETmassesB, 'b--', lw=2, zorder=10)
+    f1.scatter(myRes.CORSETheightsA, myRes.CORSETmassesA, c='r', zorder=10)
+    f1.scatter(myRes.CORSETheightsB, myRes.CORSETmassesB, c='b', zorder=10)
+    f1.set_xlabel('Height (Rs)')
+    f1.set_ylabel('Mass (10$^{15}$ g)')
+    #plt.show()
+    plt.savefig('fig_2012_exampleProf.png')
+    
+# |---------------------------------------|
+# |------------- Calc Stats --------------|
+# |---------------------------------------|
+if False:
+    print ('')
+    print ('|----------- Numbers -----------|')
+    print ('CORSET events:'.rjust(25), len(CORkeys))
+    print ('Paired CORSET events:'.rjust(25), len(compTimes))
+    print ('GCS events:'.rjust(25), len(GCSkeys))
+    print ('Paired CORSET-GCS events:'.rjust(25), len(compHasGCS))
+    print ('')
+    
+    # CORSET number of times per event
+    nPerA = []
+    nPerB = []
+    for key in CORkeys:
+        thisRes = res[key]
+        if thisRes.CCoMtimesA[0]:
+            nPerA.append(len(thisRes.CORSETtimesA))
+        if thisRes.CCoMtimesB[0]:
+            nPerB.append(len(thisRes.CORSETtimesB))
+    print (np.sum(nPerA), np.sum(nPerB))
+    print ('CORSET Masks per Event')
+    print ('           A    B')
+    print ('Mean:   ', '{:.1f}'.format(np.mean(nPerA)), '{:.1f}'.format(np.mean(nPerB)))
+    print ('Median: ',np.median(nPerA), np.median(nPerB))
+    print ('STD:    ','{:4.1f}'.format(np.std(nPerA)), '{:4.1f}'.format(np.std(nPerB)))
+    
+    
+    # GCS number of fitters
+    nFits = []
+    for key in GCSkeys:
+        thisRes = res[key]
+        nFits.append(len(thisRes.GCSvals.keys()))
+    nFits = np.array(nFits)
+             
+    print('')
+    print ('GCS Number of Fitters')
+    print ('Mean Fits:', '{:.1f}'.format(np.mean(nFits)))
+    print ('1 Fit:    ', len(np.where(nFits == 1)[0]))
+    print ('2 Fit:    ', len(np.where(nFits == 2)[0]))
+    print ('3 Fit:    ', len(np.where(nFits == 3)[0]))
+    print ('4 Fit:    ', len(np.where(nFits == 4)[0]))
+    print (np.sum(nFits))
+    
+    
+    # Masses - means. meds. std/errors
+    print ('')
+    print ('|------------ Masses ------------|')
+    print ('            (log10 g)')
+    print ('        N   Mean  Med   STD')
+    
+    massCORA = np.log10(np.array(CORmassesA)*1e15) 
+    massCORB = np.log10(np.array(CORmassesB)*1e15)
+    massGCSA = np.log10(np.array(GCSmassesMA)*1e15)
+    massGCSB = np.log10(np.array(GCSmassesMB)*1e15)
+    
+    massDP1, massDP2A, massDP2B = [], [], []
+    massPA, massPB = [], []
+    for key in CORkeys:
+            thisRes = res[key]
+            # Check if had matched A/B and could deproj
+            if thisRes.deprojTimes[0]:
+                maxIdx = np.where(thisRes.deprojMasses == np.max(thisRes.deprojMasses))[0]
+                massDP1.append(thisRes.deprojMasses[maxIdx[0]])
+                maxIdx = np.where(thisRes.projMassesA == np.max(thisRes.projMassesA))[0]
+                massPA.append(thisRes.projMassesA[maxIdx[0]])
+                maxIdx = np.where(thisRes.projMassesB == np.max(thisRes.projMassesB))[0]
+                massPB.append(thisRes.projMassesB[maxIdx[0]])
+                
+                maxIdxA = np.where(thisRes.CdeprojMassesA == np.max(thisRes.CdeprojMassesA))[0]
+                maxIdxB = np.where(thisRes.CdeprojMassesB == np.max(thisRes.CdeprojMassesB))[0]
+                massDP2A.append(thisRes.CdeprojMassesA[maxIdxA[0]])
+                massDP2B.append(thisRes.CdeprojMassesB[maxIdxB[0]])
+    massDP1 = np.array(massDP1)
+    massDP2A = np.array(massDP2A)
+    massDP2B = np.array(massDP2B)
+    massPA = np.array(massPA)
+    massPB = np.array(massPB)
+    
+    massDP1 = np.log10(np.array(massDP1[np.where(massDP1 > 0)])*1e15) 
+    massDP2A = np.log10(np.array(massDP2A[np.where(massDP2A > 0)])*1e15) 
+    massDP2B = np.log10(np.array(massDP2B[np.where(massDP2B > 0)])*1e15)
+    massPA = np.log10(np.array(massPA[np.where(massPA > 0)])*1e15) 
+    massPB = np.log10(np.array(massPB[np.where(massPB > 0)])*1e15) 
+    
+    print ('CORA  ', len(massCORA), '{:4.2f}'.format(np.mean(massCORA)), '{:4.2f}'.format(np.median(massCORA)), '{:4.2f}'.format(np.std(massCORA)) )
+    print ('CORB   ', len(massCORB), '{:4.2f}'.format(np.mean(massCORB)), '{:4.2f}'.format(np.median(massCORB)), '{:4.2f}'.format(np.std(massCORB)) )
+    print ('CORAp  ', len(massPA), '{:4.2f}'.format(np.mean(massPA)), '{:4.2f}'.format(np.median(massPA)), '{:4.2f}'.format(np.std(massPA)) )
+    print ('CORBp  ', len(massPB), '{:4.2f}'.format(np.mean(massPB)), '{:4.2f}'.format(np.median(massPB)), '{:4.2f}'.format(np.std(massPB)) )
+    print ('GCSA   ', len(massGCSA), '{:4.2f}'.format(np.mean(massGCSA)), '{:4.2f}'.format(np.median(massGCSA)), '{:4.2f}'.format(np.std(massGCSA)) )
+    print ('GCSB   ', len(massGCSB), '{:4.2f}'.format(np.mean(massGCSB)), '{:4.2f}'.format(np.median(massGCSB)), '{:4.2f}'.format(np.std(massGCSB)) )
+    print ('dp1    ', len(massDP1), '{:4.2f}'.format(np.mean(massDP1)), '{:4.2f}'.format(np.median(massDP1)), '{:4.2f}'.format(np.std(massDP1)) )
+    print ('dp2A   ', len(massDP2A), '{:4.2f}'.format(np.mean(massDP2A)), '{:4.2f}'.format(np.median(massDP2A)), '{:4.2f}'.format(np.std(massDP2A)) )
+    print ('dp2B   ', len(massDP2B), '{:4.2f}'.format(np.mean(massDP2B)), '{:4.2f}'.format(np.median(massDP2B)), '{:4.2f}'.format(np.std(massDP2B)) )
+    
+    # get min/max date of CORSET
+    minDT = np.min([np.min(CORdatesA), np.min(CORdatesB)])
+    maxDT = np.max([np.max(CORdatesA), np.max(CORdatesB)])
+    
+    data = np.genfromtxt('fromAngelos/clean.list', dtype=None, skip_header=1)
+    massCO = []
+    widCO  = []
+    dateCO = []
+    for i in range(len(data)):      
+        thisDate = data[i][0] + 'T' + data[i][1]
+        thisDT = datetime.datetime.strptime(thisDate, "%Y/%m/%dT%H:%M:%S" )
+        if (thisDT >= minDT) & (thisDT <= maxDT):
+            massCO.append(data[i][13])
+            widCO.append(data[i][3])
+            dateCO.append(thisDT)
+    widCO = np.array(widCO)
+    massCO = np.log10(np.array(massCO))
+    dateCO = np.array(dateCO)
+    subMassCO = massCO[np.where(widCO > 80)]
+    subDateCO = dateCO[np.where(widCO > 80)]
+    print ('CDAW ', len(massCO), '{:4.2f}'.format(np.mean(massCO)), '{:4.2f}'.format(np.median(massCO)), '{:4.2f}'.format(np.std(massCO)) )
+    print ('CDAW*', len(subMassCO), '{:4.2f}'.format(np.mean(subMassCO)), '{:4.2f}'.format(np.median(subMassCO)), '{:4.2f}'.format(np.std(subMassCO)) )
+    
+    
+    # Lats and lons
+    
+    # Diff between A/B. Methods. For mass and lat/lons
+    print ('')
+    print ('|------------ A/B Comp ------------|')    
+    print ('          A mass / B mass ')
+    p1 = np.array(pCORmassesA)*1e15
+    p2 = np.array(pCORmassesB)*1e15
+    p3 = np.array(pGCSmassesA)*1e15 
+    p4 = np.array(pGCSmassesB)*1e15 
+    corRat = p1/p2
+    GCSRat = p3/p4
+    print ('COR:', '{:4.2f}'.format(np.mean(corRat)), '{:4.2f}'.format(np.median(corRat)), '{:4.2f}'.format(np.std(corRat)) )
+    print ('GCS:', '{:4.2f}'.format(np.mean(GCSRat)), '{:4.2f}'.format(np.median(GCSRat)), '{:4.2f}'.format(np.std(GCSRat)) )
+    
+    print ('')
+    print ('           A pix / B pix ')
+    p1 = np.array(pCORpixA)
+    p2 = np.array(pCORpixB)
+    p3 = np.array(pGCSpixA)
+    p4 = np.array(pGCSpixB)
+    corRat = p1/p2
+    GCSRat = p3/p4
+    print ('COR:', '{:4.2f}'.format(np.mean(corRat)), '{:4.2f}'.format(np.median(corRat)), '{:4.2f}'.format(np.std(corRat)) )
+    print ('GCS:', '{:4.2f}'.format(np.mean(GCSRat)), '{:4.2f}'.format(np.median(GCSRat)), '{:4.2f}'.format(np.std(GCSRat)) )
+    
+    

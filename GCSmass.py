@@ -291,13 +291,16 @@ def makeOutputs(myMap, myCORmask, gMask, gMaskOO, imName, im0Name, usrName, CORi
         CORmass = 'None'
         nCpix   = 'None' 
     
-    GCSmass = '{:4.2f}'.format(np.sum(myMap.data*(gMask == -3))/1e15)
-    nGpix = np.sum(gMask == -3)
-    GCSmassOO = '{:4.2f}'.format(np.sum(myMap.data*(gMaskOO == -3))/1e15)
-    nGpixOO = np.sum(gMaskOO == -3)
-    #print ('CORSET Mass:', CORmass, nCpix)
-    #print ('GCS Mass:   ', GCSmass, nGpix)
-    #print ('GCS Mass OO:', GCSmassOO, nGpixOO)
+    doGCS = False
+    if type(gMask) != type(None):
+        doGCS = True
+        GCSmass = '{:4.2f}'.format(np.sum(myMap.data*(gMask == -3))/1e15)
+        nGpix = np.sum(gMask == -3)
+        GCSmassOO = '{:4.2f}'.format(np.sum(myMap.data*(gMaskOO == -3))/1e15)
+        nGpixOO = np.sum(gMaskOO == -3)
+        #print ('CORSET Mass:', CORmass, nCpix)
+        #print ('GCS Mass:   ', GCSmass, nGpix)
+        #print ('GCS Mass OO:', GCSmassOO, nGpixOO)
                 
     if doFig:            
         fig = plt.figure(figsize = (8,8), frameon=False)
@@ -311,19 +314,27 @@ def makeOutputs(myMap, myCORmask, gMask, gMaskOO, imName, im0Name, usrName, CORi
         
         myMap.plot(axes=ax, clip_interval=(25, 99)*u.percent)
         if np.any(myCORmask):
-            ax.contour(myCORmask, levels=[-3], colors=['red'])
-        ax.contour(gMaskOO, levels=[-3], colors=['teal'])
-        ax.contour(gMask, levels=[-3], colors=['blue'])
+            ax.contour(myCORmask, levels=[-3], colors=['red'], linewidths=3)
+        if doGCS:
+            ax.contour(gMaskOO, levels=[-3], colors=['teal'])
+            ax.contour(gMask, levels=[-3], colors=['blue'], linewidths=3)
         ax.contourf(occMask, levels=[-5,-3], colors=['black'])
         ax.set_axis_off()
         ax.set_title('')
     
         # Add im/base time and total mass as text
-        ax.text(0.01, 0.03, GCSmass+'x10$^{15}$ g ('+ GCSmassOO +')', transform=ax.transAxes, color='blue', horizontalalignment='left', verticalalignment='bottom', fontsize=12)
+        ax.text(0.01, 0.06, 'Mass (10$^{15}$ g)', transform=ax.transAxes, color='w', horizontalalignment='left', verticalalignment='bottom', fontsize=16)
+        if doGCS:
+            if GCSmassOO != GCSmass:
+                ax.text(0.01, 0.03, 'GCS: ' + GCSmass+' ('+ GCSmassOO +')', transform=ax.transAxes, color='w', horizontalalignment='left', verticalalignment='bottom', fontsize=16)
+            else:
+                ax.text(0.01, 0.03, 'GCS: ' + GCSmass, transform=ax.transAxes, color='w', horizontalalignment='left', verticalalignment='bottom', fontsize=16)
         if np.any(myCORmask):
-            ax.text(0.01, 0.0, CORmass +'x10$^{15}$ g', transform=ax.transAxes, color='r', horizontalalignment='left', verticalalignment='bottom', fontsize=12)
-        ax.text(0.99, 0.03, imName.replace('.CK', ''), transform=ax.transAxes, color='w', horizontalalignment='right', verticalalignment='bottom', fontsize=12)
-        ax.text(0.99, 0.0, im0Name.replace('.CK', ''), transform=ax.transAxes, color='w', horizontalalignment='right', verticalalignment='bottom', fontsize=12)
+            ax.text(0.01, 0.0, 'CORSET: '+CORmass, transform=ax.transAxes, color='w', horizontalalignment='left', verticalalignment='bottom', fontsize=16)
+        subImName = imName.replace('.CK', '').replace('_d4c2A', '').replace('_d4c2B', '')
+        subImName0 = im0Name.replace('.CK', '').replace('_d4c2A', '').replace('_d4c2B', '')
+        ax.text(0.99, 0.03, subImName, transform=ax.transAxes, color='w', horizontalalignment='right', verticalalignment='bottom', fontsize=16)
+        ax.text(0.99, 0.0, subImName0, transform=ax.transAxes, color='w', horizontalalignment='right', verticalalignment='bottom', fontsize=16)
         plt.subplots_adjust(hspace=0.1,left=0,right=1,top=1,bottom=0)
         
         outFile = outPath+imName
@@ -333,10 +344,11 @@ def makeOutputs(myMap, myCORmask, gMask, gMaskOO, imName, im0Name, usrName, CORi
         plt.savefig(outFile)
         plt.close()
     
-    outstr = imName.ljust(22) + CORid.rjust(13) + CORmass.rjust(6) + str(nCpix).rjust(10) + usrName.rjust(15) + GCSmass.rjust(6) + str(nGpix).rjust(10) + GCSmassOO.rjust(6) + str(nGpixOO).rjust(10)
-    print (outstr)
+    if doGCS:
+        outstr = imName.ljust(22) + CORid.rjust(13) + CORmass.rjust(6) + str(nCpix).rjust(10) + usrName.rjust(15) + GCSmass.rjust(6) + str(nGpix).rjust(10) + GCSmassOO.rjust(6) + str(nGpixOO).rjust(10)
+        print (outstr)
    
-    return outstr
+        return outstr
 
 def processCase(aIm, aIm0, aUsr, myGCS, CORmasks, CORfiles, CORid):
     # Figure out if we have a matching CORSET case
@@ -351,10 +363,10 @@ def processCase(aIm, aIm0, aUsr, myGCS, CORmasks, CORfiles, CORid):
     
     # Get the appropriate mass file
     slashIdx = np.char.find(aIm, '/')
-    shortName = aIm[slashIdx+1:].replace('.fts', '_mass.fts')
+    shortName = aIm[slashIdx+1:].replace('.fts', '_massPOS.fts')
     shortestName = aIm[slashIdx+1:].replace('.fts', '')
     slashIdx0 = np.char.find(aIm0, '/')
-    shortName0 = aIm0[slashIdx0+1:].replace('.fts', '_mass.fts')
+    shortName0 = aIm0[slashIdx0+1:].replace('.fts', '_massPOS.fts')
     shortestName0 = aIm0[slashIdx0+1:].replace('.fts', '')
     
     if os.path.exists(massPath+shortName.replace('.CK','')):
@@ -383,14 +395,19 @@ def runAllCases(saveIt=False):
     dataIms = np.genfromtxt('haveMassImage.txt', dtype=str)
     
     if saveIt:
-        f1 = open('GCSmassComparison.txt', 'w')
+        f1 = open('GCSmassComparisonPOS.txt', 'w')
 
     # Get list ocf unique COR time stamps
     timeIDs = np.unique(dataCore[:,0])
-    counter = 83
+    counter = 0
     n2do    = len(timeIDs)
+    
+    # use to find indiv cases
+    #for i in range(len(timeIDs)):
+    #    print(i, timeIDs[i])
+    #print(sd)
     #while counter < n2do:
-    for counter in [94]:
+    for counter in [221]:
         counter += 1
         aTime = timeIDs[counter-1]
         print ('On event ', counter, ' out of ', n2do, aTime)
@@ -486,8 +503,51 @@ def runAllCases(saveIt=False):
     if saveIt:
         f1.close()
 
+def justCORSET(CORid, time, time0):
+    # Pull the file path from the dictionary
+    CORpath  = CORdict[CORid]
+    CORmasks, CORfiles = getCORSET(CORid, CORpath)
+    # split up CORfiles
+    if 'A' in CORid:
+        subNames = np.array([item.split('/')[1].replace('_d4c2A.fts','') for item in CORfiles])
+    else:
+        subNames = np.array([item.split('/')[1].replace('_d4c2B.fts','') for item in CORfiles])
+    if time not in subNames:
+        print('Cannot find ', time, ' in CORSET masks. Options are:')
+        print(subNames)
+    else:   
+        if 'A' in CORid: 
+            ftsFile = CORpath+CORid+'/fts/'+CORid+'_'+time+'_d4c2A_mass.fts'
+        else:
+            ftsFile = CORpath+CORid+'/fts/'+CORid+'_'+time+'_d4c2B_mass.fts'
+        # Set up map for the background image 
+        myMap = sunpy.map.Map(ftsFile)
+        
+        idx = np.where(subNames == time)[0]
+        myCORmask = CORmasks[idx[0]]
+        makeOutputs(myMap, myCORmask, None, None, time, time0, 'COR', CORid=CORid)
+        
+    
+        
+    
+    
+    
 
 if __name__ == '__main__':
     global CORdict
     CORdict = makeCORSETdict()
-    runAllCases(saveIt=False)
+    #runAllCases(saveIt=False)
+    
+    # Bad example cases for the paper appendix
+    CORid = '1663.5167_0A'
+    time  = '20110516_023900'
+    time  = '20110516_045400'
+    time0 = '20110516_003900'
+    
+    CORid = '1663.5583_0B'
+    time  = '20110516_023900'
+    time  = '20110516_045400'
+    time0 = '20110516_012422'
+    
+    
+    justCORSET(CORid, time, time0)

@@ -4,6 +4,7 @@ import datetime
 #from sunpy.coordinates import HeliocentricEarthEcliptic, get_body_heliographic_stonyhurst, get_horizons_coord
 from sunpy.time import parse_time
 import pickle
+import sys
 
 # make label text size bigger
 plt.rcParams.update({'font.size':14})
@@ -131,6 +132,12 @@ class AllRes:
             self.CprojCPAstdA   = None
             self.CprojCPAstdB   = None
             
+            # Laura Deproj
+            self.LBdeprojLat = None
+            self.LBdeprojLon = None
+            self.LBdeprojMA = None
+            self.LBdeprojMB = None
+            
                       
             # GCS properties
             self.GCSnamesA     = None
@@ -158,8 +165,8 @@ class AllRes:
             self.GCSprofNamesB  = None
             self.GCSprofHtsB    = None
             self.GCSprofTimesB  = None
-            self.GCSprofMassA   = None # approx masses using CORSET h/t
-            self.GCSprofMassB   = None
+            self.GCSprofMassA   = [None] # approx masses using CORSET h/t
+            self.GCSprofMassB   = [None]
             self.GCSprofPixA    = None
             self.GCSprofPixB    = None
             self.GCSprofMassOOA = None 
@@ -263,10 +270,73 @@ class AllRes:
                 print('')
                 
             
+            # Center of mass things    
+            if self.CCoMtimesA[0]:
+                print ('Center of Mass Time Series in STA')
+                print('   Time               CoM x    CoM y    Sun x    Sun y   CoM ht   CoM ht      CPA   COR ht       AW')
+                print('                      [pix]    [pix]    [pix]    [pix]    [pix]     [Rs]    [deg]     [Rs]    [deg]')
+                for i in range(len(self.CCoMtimesA)):              
+                    print('  ', self.CCoMtimesA[i], '{:8.2f}'.format(self.CCoMpixxA[i]), '{:8.2f}'.format(self.CCoMpixyA[i]), '{:8.2f}'.format(self.CCoMpixxA0[i]), '{:8.2f}'.format(self.CCoMpixyA0[i]), '{:8.2f}'.format(self.CCoMhtpixA[i]), '{:8.2f}'.format(self.CCoMhtRsA[i]), '{:8.2f}'.format(self.CCoM_CPAsA[i]), '{:8.2f}'.format(self.CCoM_hFsA[i]), '{:8.2f}'.format(self.CCoM_AWsA[i]))
+            print('')
+            if self.CCoMtimesB[0]:
+                print ('Center of Mass Time Series in STB')
+                print('   Time               CoM x    CoM y    Sun x    Sun y   CoM ht   CoM ht      CPA   COR ht       AW')
+                print('                      [pix]    [pix]    [pix]    [pix]    [pix]     [Rs]    [deg]     [Rs]    [deg]')
+                for i in range(len(self.CCoMtimesB)):              
+                    print('  ', self.CCoMtimesB[i], '{:8.2f}'.format(self.CCoMpixxB[i]), '{:8.2f}'.format(self.CCoMpixyB[i]), '{:8.2f}'.format(self.CCoMpixxB0[i]), '{:8.2f}'.format(self.CCoMpixyB0[i]), '{:8.2f}'.format(self.CCoMhtpixB[i]), '{:8.2f}'.format(self.CCoMhtRsB[i]), '{:8.2f}'.format(self.CCoM_CPAsB[i]), '{:8.2f}'.format(self.CCoM_hFsB[i]), '{:8.2f}'.format(self.CCoM_AWsB[i]))
+
         else:    
             print('No CORSET map for this event')
+        
+        print ('')    
+        print ('')    
+        print ('')    
+        print ('|-------------------------------|')
+        print ('    CORSET Deproj Information    ')
+        print ('|-------------------------------|')
+        if self.deprojTimes[0]:
+            print('')
+            print('Mass Only Deproj Method for STA')
+            print('   Time                 depM   SatLon   depLon   depLat    depHt    projM    projH      CPA')
+            for i in range(len(self.deprojTimes)):
+                print('   ', self.deprojTimes[i], '{:8.2f}'.format(self.deprojMasses[i]), '{:8.2f}'.format(self.depSatLonsA[i]), '{:8.2f}'.format(self.deprojLons[i]), '{:8.2f}'.format(self.deprojLatA[i]), '{:8.2f}'.format(np.abs(float(self.deprojHeightsA[i]))),  '{:8.2f}'.format(self.projMassesA[i]), '{:8.2f}'.format(self.projHeightsA[i]), '{:8.2f}'.format(self.projCPAsA[i]))
+            print ('')   
+        
+        if self.deprojTimes[0]:
+            print('')
+            print('Mass Only Deproj Method for STB')
+            print('   Time                 depM   SatLon   depLon   depLat    depHt    projM    projH      CPA')
+            for i in range(len(self.deprojTimes)):
+                print('   ', self.deprojTimes[i], '{:8.2f}'.format(self.deprojMasses[i]), '{:8.2f}'.format(self.depSatLonsB[i]), '{:8.2f}'.format(self.deprojLons[i]), '{:8.2f}'.format(self.deprojLatB[i]), '{:8.2f}'.format(np.abs(float(self.deprojHeightsB[i]))),  '{:8.2f}'.format(self.projMassesB[i]), '{:8.2f}'.format(self.projHeightsB[i]), '{:8.2f}'.format(self.projCPAsB[i]))
+            print ('')     
+                
             
+        if self.CdeprojTimes[0]:
+            print('')
+            print('Mass+Lat+Height Deproj Method for STA')
+            print('   Time                 depM   SatLon   depLon   depLat    depHt    projM    projH      CPA')
+            for i in range(len(self.deprojTimes)):
+                print('   ', self.CdeprojTimes[i], '{:8.2f}'.format(self.CdeprojMassesA[i]), '{:8.2f}'.format(self.CdepSatLonsA[i]), '{:8.2f}'.format(self.CdeprojLons[i]), '{:8.2f}'.format(self.CdeprojLatA[i]), '{:8.2f}'.format(np.abs(float(self.CdeprojHeightsA[i]))),  '{:8.2f}'.format(self.CprojMassesA[i]), '{:8.2f}'.format(self.CprojHeightsA[i]), '{:8.2f}'.format(self.CprojCPAsA[i]))
+            print ('')
+
+            print('')
+            print('Mass+Lat+Height Deproj Method for STB')
+            print('   Time                 depM   SatLon   depLon   depLat    depHt    projM    projH      CPA')
+            for i in range(len(self.deprojTimes)):
+                print('   ', self.CdeprojTimes[i], '{:8.2f}'.format(self.CdeprojMassesB[i]), '{:8.2f}'.format(self.CdepSatLonsB[i]), '{:8.2f}'.format(self.CdeprojLons[i]), '{:8.2f}'.format(self.CdeprojLatB[i]), '{:8.2f}'.format(np.abs(float(self.CdeprojHeightsB[i]))),  '{:8.2f}'.format(self.CprojMassesB[i]), '{:8.2f}'.format(self.CprojHeightsB[i]), '{:8.2f}'.format(self.CprojCPAsB[i]))
+            print ('')
             
+        if self.LBdeprojLat:
+            print('')
+            print('Balmaceda et al. deprojection')
+            print('         Lat      Lon    MassA    MassB')
+            print('   ', '{:8.2f}'.format(self.LBdeprojLat), '{:8.2f}'.format(self.LBdeprojLon), '{:8.2f}'.format(self.LBdeprojMA), '{:8.2f}'.format(self.LBdeprojMB))
+            print('')
+            
+        
+
+
+
         if doGCS:
             print ('')
             print ('')
@@ -278,7 +348,7 @@ class AllRes:
             print('')
             print('')
             print('GCS parameters from individual reconstructions')
-            print('                     lat      lon     tilt      AW     kappa      ht    v    Fit Time ')
+            print('                     lat      lon     tilt      AW     kappa      ht    v       Fit Time ')
             print('                    (deg)    (deg)    (deg)    (deg)             (Rs)  (km/s)  ')
                         
             if type(self.GCSnamesA) != type(None):
@@ -291,11 +361,14 @@ class AllRes:
                     print (outstr + self.GCStimesA[i])
                 print ('')
                 print ('')    
+                
+                print ('')
+                print ('GCS Values using given reconstruction times')
+                print ('')
             
-                print('')
                 print('GCS/CORSET Mass Comparison A')
                 print ('                      CORSET vals           GCS values     GCS outer only')
-                print ('    GCSFit        Mass(1e15 g) Pixels     Mass     Pixs     Mass     Pixs')
+                print ('      GCSFit      Mass(1e15 g) Pixels     Mass     Pixs     Mass     Pixs')
                 for i in range(nGCS):
                     outstr = self.GCSnamesA[i].rjust(12) + '       '
                     print (outstr, str(self.GCS2CmassesA[i]).rjust(8), str(self.GCS2CpixsA[i]).rjust(8), str(self.GCSmassesA[i]).rjust(8), str(self.GCSpixsA[i]).rjust(8), str(self.GCSmassesOOA[i]).rjust(8), str(self.GCSpixsOOA[i]).rjust(8))
@@ -304,11 +377,11 @@ class AllRes:
                 print('No GCS/CORSET match in A')
             
             
-            if type(self.GCSnamesA) != type(None):
-                nGCS = len(self.GCSnamesA)
+            if type(self.GCSnamesB) != type(None):
+                nGCS = len(self.GCSnamesB)
                 print('GCS/CORSET Mass Comparison B')
                 print ('                      CORSET vals           GCS values     GCS outer only')
-                print ('    GCSFit        Mass(1e15 g) Pixels     Mass     Pixs     Mass     Pixs')
+                print ('      GCSFit      Mass(1e15 g) Pixels     Mass     Pixs     Mass     Pixs')
                 nGCS = len(self.GCSnamesB)
                 for i in range(nGCS):
                     outstr = self.GCSnamesB[i].rjust(12) + '       '
@@ -321,6 +394,7 @@ class AllRes:
             print ('')
             print ('')
             print ('Profiles using CORSET height/time and GCS params')
+            print ('')
             if type(self.GCSprofNamesA) != type(None):
                 nGCS = len(self.GCSprofNamesA) -1
                 print ('Number of CORSET/GCS pairs in STA:', nGCS)
@@ -554,7 +628,7 @@ def makeThatRes():
               
     # |------------ GCSmassComparison.txt ------------|
     # Time ID string, CORID, COR mass, cor pix, user, GCS mass, GCSpix, outer only GCS mass, pix
-    data5 = np.genfromtxt('GCSmassComparison.txt', dtype=str)
+    data5 = np.genfromtxt('GCSmassComparisonPOS.txt', dtype=str)
     for i in range(len(data5[:,0])):
         myCORid = data5[i,1]
         myDateID = None
@@ -646,7 +720,7 @@ def makeThatRes():
     # |------------ GCSmassProfiles.txt ------------|
     # Time string, COR ID, COR mass, COR mix, usr, GCS mass, GCSpix, outer only GCS mass, pix, heights 
     # Shouldn't need to add anyone since already ran GCS given-height cases
-    data6 = np.genfromtxt('GCSmassProfiles.txt', dtype=str)
+    data6 = np.genfromtxt('GCSmassProfilesPOS.txt', dtype=str)
     allCORids = data6[:,1]
     unCORids = set(allCORids)
     unCORids = np.sort(np.array([a for a in unCORids]))
@@ -960,6 +1034,53 @@ def makeThatRes():
         myRes.CprojCPAsB     = np.array(cpaBs)
     
 
+    # Data from Laura
+    '''dataLB  = np.genfromtxt('corset_triang_cpa.csv', dtype=str, delimiter=',', skip_header=1)
+    lats   =  (np.pi/2 - dataLB[:,8].astype(float)) * 180 / np.pi
+    lons   = dataLB[:,9].astype(float) * 180 / np.pi
+    idA    =  dataLB[:,10]
+    idA    = np.array([item.replace('"', '') for item in idA])
+    idB    =  dataLB[:,11]
+    idB    = np.array([item.replace('"', '') for item in idB])
+    for key in uniqIDs:
+        myRes = res[key]
+        myIDA  = myRes.CORSETidA
+        if myIDA in idA:
+            idxA = np.where(idA == myIDA)[0]
+        # Checked that A/B matches each other as expected, can use just A tho    
+        #myIDB  = myRes.CORSETidB
+        #if myIDB in idB:
+        #    idxB = np.where(idB == myIDB)[0]
+        myRes.LBdeprojLat = lats[idxA[0]]
+        myRes.LBdeprojLon = lons[idxA[0]] % 360.'''
+    
+    dataLB = np.genfromtxt('LBdeproj.dat', dtype=str)
+    ids = dataLB[:,0]
+    for i in range(len(ids)):
+        idx = ids[i]
+        myRes = res[idx]
+        myRes.LBdeprojLat = float(dataLB[i,1])
+        myRes.LBdeprojLon = float(dataLB[i,2]) % 360.
+        if dataLB[i,5] != 'None':
+            myRes.LBdeprojMA = float(dataLB[i,5])
+        if dataLB[i,6] != 'None':
+            myRes.LBdeprojMB = float(dataLB[i,6])
+            
+    # Need to correct base imgs bc was pulling first not base into max mass
+    dataB = np.genfromtxt('baseImgs.txt', dtype=str)
+    keys = dataB[:,0]
+    for i in range(len(keys)):
+        key = keys[i]
+        newKey = id2time[key]
+        myRes = res[newKey]
+        if 'A' in key:
+            myRes.CORSETim0A = dataB[i,1]
+        elif 'B' in key:
+            myRes.CORSETim0B = dataB[i,1]
+    
+        
+
+   
     #for key in res.keys():
     #    print (key)
     #    print ('  ', res[key].CORSETidA, res[key].CORSETidB)       
@@ -979,8 +1100,30 @@ if __name__ == '__main__':
         res, id2time, time2time = pickle.load(f)
         f.close()    
     
+    
+    #key = id2time['2059.1000_0A']
+    #res[key].printMe()
+    
+    '''howMany = []
+    for aRes in res:
+        myTimes = res[aRes].CORSETtimesA
+        if type(myTimes) != type(None):
+            howMany.append(len(myTimes))
+            if (len(myTimes)) > 40:
+                print (aRes)
+                print (myTimes)
+                print ('')
+    howMany = np.array(howMany)
+    print (np.min(howMany), np.max(howMany))
+    print (np.mean(howMany), np.median(howMany))'''
+    
 
     keys = np.sort(np.array([key for key in res.keys()]))
-    #res[id2time['2087.1938_0A']].printMe()
+    for key in keys:
+        #key = id2time['2087.1938_0A']
+        stdout_bak = sys.stdout
+        with open('indivFiles/'+key+'.txt', 'w') as sys.stdout:
+            res[key].printMe()
+        sys.stdout = stdout_bak
     #for key in keys:
     #    res[key].printMe()

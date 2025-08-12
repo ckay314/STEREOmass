@@ -136,11 +136,11 @@ def runAllCases(saveIt=False):
     dataIms = np.genfromtxt('haveMassImage.txt', dtype=str)
     
     if saveIt:
-        f1 = open('GCSmassProfiles.txt', 'w')
+        f1 = open('GCSmassProfilesPOS2.txt', 'w')
         
     # Get list ocf unique COR time stamps
     timeIDs = np.unique(dataCore[:,0])
-    counter = 329
+    counter =0
     n2do    = len(timeIDs)
     while counter < n2do:
     #for counter in [249]:

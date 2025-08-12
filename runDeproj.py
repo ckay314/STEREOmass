@@ -507,8 +507,62 @@ def runCORSETcases(yr=None, sclB=1, fancyMode=False):
                 #print (sd)
     f2.close()
 
+def deprojLB():
+    dataLB  = np.genfromtxt('corset_triang_cpa.csv', dtype=str, delimiter=',', skip_header=1)
+    lats   =  (np.pi/2 - dataLB[:,8].astype(float)) * 180 / np.pi
+    lons   = dataLB[:,9].astype(float) * 180 / np.pi
+    idA    =  dataLB[:,10]
+    idA    = np.array([item.replace('"', '') for item in idA])
+    idB    =  dataLB[:,11]
+    idB    = np.array([item.replace('"', '') for item in idB])
+    
+    f =  open('allRes.pkl', 'rb')
+    res, id2time, time2time = pickle.load(f)
+    f.close()
+    
+    dtor = np.pi / 180.
+    for i in range(len(idA)):
+        idx = idA[i]
+        myRes = res[id2time[idx]]
+        lonA = myRes.CdepSatLonsA[0]
+        lonB = myRes.CdepSatLonsB[0]
+        htA  = float(myRes.CORSEThtMA)
+        htB  = float(myRes.CORSEThtMB)
+        if htA == 0:
+            htA = np.max(myRes.CORSETheightsA)
+        if htB == 0:
+            htB = np.max(myRes.CORSETheightsB)
+        CMElon = lons[i]
+        
+        if lonA:
+            sepA = np.abs((float(CMElon) % 360) - (lonA % 360))
+            if sepA > 180: sepA = 360 - sepA
+            possepA =np.abs(90 - sepA)
+    
+            sepB = np.abs((float(CMElon) % 360) - (lonB % 360))
+            if sepB > 180: sepB = 360 - sepB
+            possepB = np.abs(90 - sepB)
+            
+            # scl the height because htA is a proj in A and want true height
+            sclHA =  np.abs(htA)/np.cos(possepA*dtor)
+            sclHB =  np.abs(htB)/np.cos(possepB*dtor)
+            
+            dpMA, dpMB = None, None
+            if sclHA:
+               dpMA = myRes.CORSETmassMA * elTheory(sclHA, 0)[1] / elTheory(sclHA, possepA)[1]
+            if sclHB:
+               dpMB = myRes.CORSETmassMB * elTheory(sclHB, 0)[1] / elTheory(sclHB, possepB)[1]
+            
+            
+            print (id2time[idx], lats[i], lons[i], possepA, possepB, dpMA, dpMB)
 
-runCORSETcases() # sclB = 1.19
+#deprojLB()
+htA = 10
+for possepA in [80, 85, 86, 87, 88, 89, 89.5]:
+    print (possepA, elTheory(htA, 0)[1] / elTheory(htA, possepA)[1])
+
+
+#runCORSETcases() # sclB = 1.19
 
 # params are [satLon, h, mass, CPA]
 #Aparam = [6.536990972964404, -3.1349589882116558, 0.92, 94.5] #20070529_090730
