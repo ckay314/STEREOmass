@@ -59,7 +59,7 @@ fileB = '/Users/kaycd1/wombat/fits/testing/psp_L2_wispr_20250610T203026_V0_1221.
 files = [fileA, fileB] 
 wispr_prep, files, headers, images  
 ;help, headers[0]
-
+print, sd
 ; think this just views a processed image?
 ;im = wispr_mk_frame(fileA,bytscl=0)
 

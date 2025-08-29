@@ -118,7 +118,7 @@ def get_calimg(hdr, calimg_filename=None, outSize=None):
     else:
         ssum = 2**(hdr['summed']-1)
      
-    # Rebin if cal isn't same shape as source im. TBD!!!  
+    # Rebin if cal isn't same shape as source im. 
     s = cal.shape
     if ssum != 1:
         cal = rebinIDL(cal, np.array([int(s[0]/ssum), int(s[1]/ssum)]))

@@ -176,8 +176,8 @@ if __name__ == '__main__':
     #fileB = '/Users/kaycd1/wombat/fits/testing/HI2A_20090301_180921_s4h2A.fts'
    
     #HI1A
-    fileA = '/Users/kaycd1/wombat/fits/20120713_004901_s4h1A.fts'
-    fileB = '/Users/kaycd1/wombat/fits/20120713_072901_s4h1A.fts'
+    #fileA = '/Users/kaycd1/wombat/fits/20120713_004901_s4h1A.fts'
+    #fileB = '/Users/kaycd1/wombat/fits/20120713_072901_s4h1A.fts'
 
     #HI2B
     #fileA = '/Users/kaycd1/wombat/fits/testing/HI2B_20130201_000921_s4h2B.fts'
@@ -185,13 +185,14 @@ if __name__ == '__main__':
 
 
     # Python secchi_prep appears to match IDL within 0.005% 
-    ims, hdrs = secchi_prep([fileA, fileB], outSize=([1024,1024]))
-    print(ims[0][500,500])
+    #ims, hdrs = secchi_prep([fileA, fileB], outSize=([1024,1024]))
+    
     # PSP WISPR
-    #fileA = '/Users/kaycd1/wombat/fits/testing/psp_L2_wispr_20250610T000025_V0_1221.fits'
-    #fileB = '/Users/kaycd1/wombat/fits/testing/psp_L2_wispr_20250610T203026_V0_1221.fits'
-    #ims, hdrs = wispr_prep([fileA, fileB])
+    fileA = '/Users/kaycd1/wombat/fits/testing/psp_L2_wispr_20250610T000025_V0_1221.fits'
+    fileB = '/Users/kaycd1/wombat/fits/testing/psp_L2_wispr_20250610T203026_V0_1221.fits'
+    ims, hdrs = wispr_prep([fileA, fileB])
 
+    print (sd)
     diff = ims[1] - ims[0]
 
 

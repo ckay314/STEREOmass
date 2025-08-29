@@ -26,6 +26,7 @@ print (aCoord)'''
 
 fileA = '/Users/kaycd1/wombat/fits/20120712_172400_d4c2A.fts'
 im, hdr = secchi_prep(fileA) 
+print (hdr)
 #print(hdr)
 '''myWCS = fitshead2wcs(hdr[0])
 coord = np.array([0,0])

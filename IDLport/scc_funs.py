@@ -792,7 +792,7 @@ def scc_sun_center(hdr):
     
 def rebinIDL(arr, new_shape):
     factors = arr.shape // new_shape
-    outarr = arr.reshape(new_shape[0], factors[0], new_shape[0], factors[0]).mean(3).mean(1)
+    outarr = arr.reshape(new_shape[0], factors[0], new_shape[1], factors[1]).mean(3).mean(1)
     return outarr
     
 def scc_sebip(img, hdr):

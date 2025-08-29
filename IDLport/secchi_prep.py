@@ -18,7 +18,7 @@ np.seterr(divide='ignore')
 
 
 def secchi_prep(filesIn, outSize=None, silent=False):
-    # Port of the basic COR2 functionality of IDL version
+    # Port of the basic functionality of IDL version
     
     # Want filesIn as a list, even if single
     if isinstance(filesIn, str):

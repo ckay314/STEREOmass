@@ -536,7 +536,12 @@ def wcs_inv_proj_azp(my_wcs, coord):
     
     return coord
 
-def wcs_get_coord(my_wcs):
+def wcs_proj_zpn(my_wcs, coord):
+    print (coord)
+    
+    print (sd)
+
+def wcs_get_coord(my_wcs, pixels=None):
     # Assuming an appropriate header
     # ignoring distortion, associate, apply for now (139-152)
     
@@ -546,11 +551,18 @@ def wcs_get_coord(my_wcs):
     naxis1 = naxis[0]
     naxis2 = naxis[1]
     # assuming not pixel list (158-195)
-    num_elements = np.prod(naxis)
-    index = np.arange(num_elements).astype(int)
-    coord = np.empty([n_axis, num_elements])
-    coord[0,:] = index  % naxis1
-    coord[1,:] = (index / naxis1 % naxis2).astype(int)
+    if type(pixels) != type(None):
+        if len(pixels.shape) == 1:
+            pixels = pixels.reshape([2,1])
+        # assume shaped fine for multipoints?
+        coord = pixels
+        print (coord.shape)  
+    else:
+        num_elements = np.prod(naxis)
+        index = np.arange(num_elements).astype(int)
+        coord = np.empty([n_axis, num_elements])
+        coord[0,:] = index  % naxis1
+        coord[1,:] = (index / naxis1 % naxis2).astype(int)
 
     # Skipping distortion
     
@@ -587,9 +599,10 @@ def wcs_get_coord(my_wcs):
         coord = wcs_proj_tan(my_wcs, coord)
     elif proj == 'AZP':
         coord = wcs_proj_azp(my_wcs, coord)
-        
+    elif proj == 'ZPN':
+        coofd = wcs_proj_zpn(my_wcs, coord)
     else:
-        print('Other projections not yet ported')
+        print('Other projections not yet ported including '+proj)
         print(Quit)
        
     # Skipping projextion, pos_long, nowrap since not hit in simple version
