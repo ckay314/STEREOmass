@@ -10,6 +10,7 @@ from scipy import stats
 import matplotlib.colors as mcolors
 import matplotlib.dates as mdates
 from mpl_toolkits.axes_grid1.inset_locator import inset_axes
+from sklearn.metrics import r2_score
 
 
 plotAll = False
@@ -901,6 +902,9 @@ def A2Bcomp():
     p2 = np.array(pCORmassesB)*1e15
     p3 = np.array(pGCSmassesA)*1e15 
     p4 = np.array(pGCSmassesB)*1e15 
+    print (r2_score(np.log10(p2),np.log10(p1)))
+    print (r2_score(np.log10(p4),np.log10(p3)))
+    
     c1 = [pCORvelsA, None]
     c2 = [pGCSvels, pGCSidx]
     axLabs = ['log Mass STA (g)', 'log Mass STB (g)', '(M$_A$ - M$_B$) / <M>']
@@ -1596,6 +1600,7 @@ def MLLscatters():
             holder[name+'A'] = []
             holder[name+'B'] = []
     
+    compSeps = {'DP3A':[], 'DP3B':[]}
     for key in CORkeys:
         thisRes = res[key]
         # Check if had matched A/B and could deproj
@@ -1663,6 +1668,8 @@ def MLLscatters():
             compLats['DP3A'].append(np.median(thisRes.CdeprojLatA))
             compLats['DP3B'].append(np.median(thisRes.CdeprojLatB))
             
+            compSeps['DP3A'].append(thisRes.CdeprojSepA[maxIdx])
+            compSeps['DP3B'].append(thisRes.CdeprojSepB[maxIdx])
             
             
             # Get Laura values
@@ -1743,6 +1750,17 @@ def MLLscatters():
     cAA = '#332288'
     cMix = '#AA4499'
     c1sat = '#66CCEE'
+    aRatio = np.power(10,compMasses['DP3A']) / np.power(10,compMasses['CORA'])
+    bRatio = np.power(10,compMasses['DP3B']) / np.power(10,compMasses['CORB'])
+    allRatio = np.array([aRatio, bRatio]).reshape(-1)
+    allSeps  = np.array([compSeps['DP3A'], compSeps['DP3A']]).reshape(-1)
+    goodIdx1 = np.where((allRatio < 99999999) & (allSeps < 80.))[0]
+    allRatio = allRatio[goodIdx1]
+    allSeps = allSeps[goodIdx1]
+    print(np.mean(aRatio), np.median(aRatio))
+    print(np.mean(bRatio), np.median(bRatio))
+    print(np.median(allRatio), np.percentile(allRatio, 32), np.percentile(allRatio, 68))
+    #print(allRatio)
     
     # Position Plot
     fig = plt.figure(figsize=(10,10))
@@ -1976,7 +1994,7 @@ def MLLscatters():
                 y = lat2[goodIdx]
                 err  = np.abs(x-y)
                 #print (err)
-                print (key1, key2, np.median(err), stats.pearsonr(x,y))
+                #print (key1, key2, np.median(err), stats.pearsonr(x,y))
     
     
     
