@@ -594,7 +594,7 @@ def wcs_proj_zpn(my_wcs, coord):
     phi0, theta0 = phi0 * dtor, theta0 * dtor
     
     # Get the polynomial coefficients
-    holdMypp = np.empty(21)
+    holdMypp = np.zeros(21)
     if 'proj_names' in my_wcs:
         for i in range(21):
             name = 'PV'+str(my_wcs['iy']+1)+'_'+str(i)
@@ -602,7 +602,6 @@ def wcs_proj_zpn(my_wcs, coord):
             if len(idxs) > 0:
                 holdMypp[i] = my_wcs['proj_values'][idxs[0]]
     holdMypp = np.array(holdMypp)
-    
     haspp = np.where(holdMypp !=0)[0]
     if len(haspp) > 0:
         n = haspp[-1]
@@ -635,7 +634,6 @@ def wcs_proj_zpn(my_wcs, coord):
     # Calculate the native spherical coordinates
     phi = np.arctan2(cx*coord[0,:], -cy*coord[1,:])
     r_theta = np.sqrt((cx*coord[0,:])**2 + (cy*coord[1,:])**2)
-    
     # Reiteratively solve for gamma
     tolerance = 1e-8
     max_iter = 1000
@@ -663,7 +661,7 @@ def wcs_proj_zpn(my_wcs, coord):
         cos_dphi = np.cos(dphi)
         sin_theta = np.sin(theta)
         cos_theta = np.cos(theta)
-        alpha = alpha0 + np.arctan(-cos_theta * np.sin(dphi), sin_theta * np.cos(delta0) - cos_theta * np.sin(delta0) * cos_dphi)
+        alpha = alpha0 + np.arctan2(-cos_theta * np.sin(dphi), sin_theta * np.cos(delta0) - cos_theta * np.sin(delta0) * cos_dphi)
         delta = np.arcsin(sin_theta * np.sin(delta0) + cos_theta * np.cos(delta0) * cos_dphi)
 
     # Convert back to original units
@@ -740,11 +738,13 @@ def wcs_get_coord(my_wcs, pixels=None):
        
     # Skipping projextion, pos_long, nowrap since not hit in simple version
     
+    
     # Reformat
     if type(pixels) != type(None):
         coord.reshape(pixels.shape)
     else:
-        coord = coord.reshape([2, naxis1, naxis2])
+        coord = coord.reshape([2, naxis2, naxis1])
+
     return coord    
     
     

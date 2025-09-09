@@ -90,17 +90,21 @@ def calcCMEmass(img, hdr, box=None, onlyNe=False, doPB=False):
     # First part a little different order than IDL but we have code to 
     # get sunc from wcs already
     wcs = fitshead2wcs(hdr) # not system = A here it seems
-    
     #sunc =  get_Suncent(wcs)
     #coord = [sunc[0], sunc[1], hdr['crota']*dtor, hdr['rsun']/hdr['cdelt1']]
     
     # Get the distance factor over the full grid so we can use that in eltheory
     dist = wcs_get_coord(wcs) #[2,naxis,naxis] with axis having usual swap from idl
-    
     if hdr['cunit1'] == 'deg':
         dist = dist * 3600.
-    dist = np.sqrt(dist[0,:,:]**2 + dist[1,:,:]**2) / hdr['rsun']
-    
+    # SECCHI Version
+    if 'rsun' in hdr:
+        dist = np.sqrt(dist[0,:,:]**2 + dist[1,:,:]**2) / hdr['rsun']
+    # PSP version
+    elif 'RSUN_ARC' in hdr:
+        hdr['rsun'] = hdr['RSUN_ARC']
+        dist = (np.sqrt(dist[0,:,:]**2 + dist[1,:,:]**2) / hdr['RSUN_ARC'])
+     
     # |---------------------------------------|
     # |----------- Apply el Theory -----------|
     # |---------------------------------------|
@@ -188,17 +192,18 @@ if __name__ == '__main__':
     #ims, hdrs = secchi_prep([fileA, fileB], outSize=([1024,1024]))
     
     # PSP WISPR
-    fileA = '/Users/kaycd1/wombat/fits/testing/psp_L2_wispr_20250610T000025_V0_1221.fits'
-    fileB = '/Users/kaycd1/wombat/fits/testing/psp_L2_wispr_20250610T203026_V0_1221.fits'
-    ims, hdrs = wispr_prep([fileA, fileB])
-
-    print (sd)
+    #fileA = '/Users/kaycd1/wombat/fits/testing/psp_L2_wispr_20250610T000025_V0_1221.fits'
+    #fileB = '/Users/kaycd1/wombat/fits/testing/psp_L2_wispr_20250610T203026_V0_1221.fits'
+    fileA = '/Users/kaycd1/wombat/fits/testing/psp_L2_wispr_20250322T010204_V0_2222.fits'
+    fileB = '/Users/kaycd1/wombat/fits/testing/psp_L2_wispr_20250322T010702_V0_2222.fits'
+    ims, hdrs = wispr_prep([fileA, fileB], straylightOff=True)
+    
+    #print (sd)
     diff = ims[1] - ims[0]
-
-
+    print (diff[200,100])
+    
     mass, hdr = calcCMEmass(diff, hdrs[1])
-    print(mass[111,444])
 
     fig = plt.figure()
-    plt.imshow(np.log(np.abs(mass)) * np.sign(mass))
+    plt.imshow(mass, vmin=-0.0005, vmax=0.0005)
     plt.show()

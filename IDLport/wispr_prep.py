@@ -453,6 +453,40 @@ def get_wispr_pointing(shdr, doSpice=True, doCoords=False):
     return shdr
     
 
+def wispr_img_stats(hdr, im):
+    goodIm = im[np.isfinite(im)]
+    goodIm = goodIm[np.where(goodIm !=0)]
+    if len(goodIm) > 0:
+        hdr['datamin'] = np.min(goodIm)
+        hdr['datamax'] = np.max(goodIm)
+        hdr['dataavg'] = np.mean(goodIm)
+        hdr['datasig'] = np.std(goodIm)
+        hdr['datasat'] = 1 # not sure on this
+        hdr['dsatval'] = hdr['datamax'] 
+
+        pvals = [1,10,25,50, 75,90,95,98,99]
+        pnames = ['datap01', 'datap10', 'datap25', 'datap50', 'datap75', 'datap90', 'datap95', 'datap98', 'datap99']
+        for i in range(9):
+            hdr[pnames[i]] = np.percentile(goodIm, pvals[i])
+
+    return hdr, im
+
+
+def wispr_straylight(hdr, im, dn=False):
+    au = hdr['dsun_obs'] / 1.49578707e11 
+    if au <= 0.15:
+        sl = 0.75e-14 * au**-3
+    else: 
+        sl = 0.5e-13 * au **-2
+    
+    if dn:
+        print('Calfac version of wispr straylight untested')
+        cf = wispr_get_calfac(hdr)
+        sl = sl /cd
+    
+    im = im - sl
+    return hdr, im
+
 def wispr_prep(filesIn, outSize=None, silent=False, biasOff=False, biasOffsetOff=False, lin_correct=False, straylightOff=False, pointingOff=False):
     # Port of basic functionality of IDL version
     
@@ -473,10 +507,10 @@ def wispr_prep(filesIn, outSize=None, silent=False, biasOff=False, biasOffsetOff
     for i in range(num):
         if not silent:
             print ('Processing image ', i, ' out of ', num)
-        
+                
         # Read in the fits aka wispreadfits 
         im, hdr = wispr_readfits(filesIn[i])
-        
+
         # Bias subtraction routine
         if ~biasOff & hdr['ipbias'] ==0:
             sys.exit(' wisrp_ bias needs to be ported')
@@ -487,7 +521,6 @@ def wispr_prep(filesIn, outSize=None, silent=False, biasOff=False, biasOffsetOff
             offset = wispr_bias_offset(im, hdr)
             im = im - offset
             hdr['history'] = 'Subtracted ' + str(offset) +' for image for bias offest'
-
         # lin_correct not coded bc not called
         
         # -----------------------
@@ -496,7 +529,7 @@ def wispr_prep(filesIn, outSize=None, silent=False, biasOff=False, biasOffsetOff
         im, hdr = wispr_correction(im, hdr)
         
         if (hdr['detector'] == 2) & (not straylightOff):
-            print ('Havent ported straylight calib yet')
+            hdr, im = wispr_straylight(hdr, im)
             
         if int(hdr['level'][-1:]) > 1:
             notupdated = False
@@ -512,11 +545,14 @@ def wispr_prep(filesIn, outSize=None, silent=False, biasOff=False, biasOffsetOff
         # Pointing
         if not pointingOff:
             hdr = get_wispr_pointing(hdr, doCoords=True)
-            
+        
         im[np.where(im < 0)] = 0
         
+        hdr, im = wispr_img_stats(hdr, im)
         
-   
+        # Return the things
+        images_out.append(im)
+        headers_out.append(hdr)
+        
+    return images_out, headers_out        
        
-            
-    return 6, 5
