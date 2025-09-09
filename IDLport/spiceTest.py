@@ -4,25 +4,39 @@ import numpy as np
 
 global topDir, LSKfile
 topDir = '/Users/kaycd1/ssw/psp/gen/data/spice'
-LSKfile = '/Users/kaycd1/ssw/packages/sunspice/data/naif0012.tls'
-ckgpFile = '/Users/kaycd1/ssw/packages/sunspice/data/pck00011_n0066.tpc'
+otherDir = '/Users/kaycd1/ssw/packages/sunspice/data'
 
 def setupPSPkernels():
+    # Get any loaded files
+    num_kernels = spice.ktotal('ALL')
+    loadKerns = []
+    for i in range(num_kernels):
+        filename, kind, source, handle,  = spice.kdata(i, 'ALL')
+        loadKerns.append(filename)
+    loadKerns = np.array(loadKerns)
+    #print (loadKerns)
+    
     if os.path.isdir(topDir):
         files = os.listdir(topDir)
         
         # Leap second kernel
-        spice.furnsh(LSKfile)
+        LSKfile = otherDir + '/naif0012.tls'
+        if LSKfile not in loadKerns:
+            spice.furnsh(LSKfile)
         
         # Load the file that makes ckgp happy
-        spice.furnsh(ckgpFile)
+        ckgpFile = otherDir + '/pck00011_n0066.tpc'
+        if ckgpFile not in loadKerns:
+            spice.furnsh(ckgpFile)
         
         # Gen folder
         if 'gen' in files:
             genF = os.listdir(topDir+'/'+'gen')
             for aFile in genF:
                 if aFile[-3:] in ['.tf', '.ti']:
-                    spice.furnsh(topDir+'/'+'gen/'+aFile)
+                    thisKern = topDir+'/'+'gen/'+aFile
+                    if thisKern not in loadKerns:
+                        spice.furnsh(thisKern)
         else:
             print ('Missing gen files')
 
@@ -35,7 +49,9 @@ def setupPSPkernels():
                     allFs.append(aFile)
             # Just keep the last one
             aFile = np.sort(np.array(allFs))[-1]
-            spice.furnsh(topDir+'/'+'operations_sclk_kernel/'+aFile)
+            thisKern = topDir+'/'+'operations_sclk_kernel/'+aFile
+            if thisKern not in loadKerns:
+                spice.furnsh(thisKern)
         else:
             print ('Missing operatiosn_sclk_kernel')
             
@@ -44,7 +60,9 @@ def setupPSPkernels():
         if 'orbit' in files:
             orbF = os.listdir(topDir+'/'+'orbit')
             if len(orbF) == 1:
-                spice.furnsh(topDir+'/'+'orbit/'+orbF[0])
+                thisKern = topDir+'/'+'orbit/'+orbF[0]
+                if thisKern not in loadKerns:
+                    spice.furnsh(thisKern)
             else:
                 print('Multiple orbit files, need to sort out')
                 
@@ -52,7 +70,9 @@ def setupPSPkernels():
         if 'ephemeris_predict' in files:
             epF = os.listdir(topDir+'/'+'ephemeris_predict')
             if len(epF) == 1:
-                spice.furnsh(topDir+'/'+'ephemeris_predict/'+epF[0])
+                thisKern = topDir+'/'+'ephemeris_predict/'+epF[0]
+                if thisKern not in loadKerns:
+                    spice.furnsh(thisKern)
             else:
                 print('Multiple ephemeris_predict files, need to sort out')
         
@@ -64,27 +84,34 @@ def setupPSPkernels():
                     yrF = os.listdir(topDir+'/'+'reconstructed_ephemeris/'+yr)
                     for aF in yrF:
                         if aF[-4:] == '.bsp':
-                            spice.furnsh(topDir+'/'+'reconstructed_ephemeris/'+yr+'/'+aF)
+                            thisKern = topDir+'/'+'reconstructed_ephemeris/'+yr+'/'+aF
+                            if thisKern not in loadKerns:
+                                spice.furnsh(thisKern)
                             
         # Attitude long term
         if 'attitude_long_term_predict' in files:
             altF = os.listdir(topDir+'/'+'attitude_long_term_predict')
             # loading more than IDL but run with it for now
             for aF in altF:
-                spice.furnsh(topDir+'/'+'attitude_long_term_predict/'+aF)
+                thisKern = topDir+'/'+'attitude_long_term_predict/'+aF
+                if thisKern not in loadKerns:
+                    spice.furnsh(thisKern)
         
         # Attitude short term
         if 'attitude_short_term_predict' in files:
             astF = os.listdir(topDir+'/'+'attitude_short_term_predict')
             for aF in astF:
-                spice.furnsh(topDir+'/'+'attitude_short_term_predict/'+aF)
+                thisKern = topDir+'/'+'attitude_short_term_predict/'+aF
+                if thisKern not in loadKerns:
+                    spice.furnsh(thisKern)
+        
+        # Bonus things
+        moreFiles = ['de421.bsp', 'pck00011_n0066.tpc', 'heliospheric.tf',  'sdo_body_name.tf']
+        for aFile in moreFiles:
+            thisKern = otherDir + '/' + aFile
+            if thisKern not in loadKerns:
+                spice.furnsh(thisKern)
                 
-                
-
-#spice.furnsh('/Users/kaycd1/ssw/packages/sunspice/data/de421.bsp')
-#spice.furnsh('/Users/kaycd1/ssw/packages/sunspice/data/pck00011_n0066.tpc')
-#spice.furnsh('/Users/kaycd1/ssw/packages/sunspice/data/heliospheric.tf')
-#spice.furnsh('/Users/kaycd1/ssw/packages/sunspice/data/sdo_body_name.tf')
 
 if False:
     setupPSPkernels()
@@ -97,18 +124,14 @@ if False:
     cmat, clkout = spice.ckgp(int(sc)*1000, sclkdp, tol, frame)
 
 
-# Have not included
-'''
-/Users/kaycd1/ssw/packages/sunspice/data/de421.bsp
-/Users/kaycd1/ssw/packages/sunspice/data/pck00011_n0066.tpc
-/Users/kaycd1/ssw/packages/sunspice/data/heliospheric.tf
-/Users/kaycd1/ssw/packages/sunspice/data/sdo_body_name.tf
-'''
 
 # Have included
 '''
 /Users/kaycd1/ssw/packages/sunspice/data/naif0012.tls
-
+/Users/kaycd1/ssw/packages/sunspice/data/de421.bsp
+/Users/kaycd1/ssw/packages/sunspice/data/pck00011_n0066.tpc
+/Users/kaycd1/ssw/packages/sunspice/data/heliospheric.tf
+/Users/kaycd1/ssw/packages/sunspice/data/sdo_body_name.tf
 /Users/kaycd1/ssw/psp/gen/data/spice/gen/psp_rtn.tf
 /Users/kaycd1/ssw/psp/gen/data/spice/gen/spp_dyn_v201.tf
 /Users/kaycd1/ssw/psp/gen/data/spice/gen/spp_v300.tf

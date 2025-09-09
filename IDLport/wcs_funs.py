@@ -1,9 +1,44 @@
 import numpy as np
+import scipy
 #from astropy import wcs
 
 c = np.pi / 180.
 cunit2rad = {'arcmin': c / 60.,   'arcsec': c / 3600.,  'mas': c / 3600.e3,  'rad':  1., 'deg':c}
 
+def idlsav2wcs(pathIn):
+    idlwcso = scipy.io.readsav(pathIn)['wcso']
+    awcs = {}
+    awcs['COORD_TYPE'] = idlwcso['COORD_TYPE'].astype(str)[0]
+    awcs['WCSNAME'] = idlwcso['WCSNAME'].astype(str)[0]
+    awcs['NAXIS'] = np.array([idlwcso['NAXIS'][0][0], idlwcso['NAXIS'][0][1]]).astype(int)
+    awcs['VARIATION'] = idlwcso['VARIATION'].astype(str)[0]
+    awcs['COMPLIANT'] = idlwcso['COMPLIANT'].astype(int)[0]
+    awcs['PROJECTION'] = idlwcso['PROJECTION'].astype(str)[0]
+    awcs['IX'] = idlwcso['IX'].astype(int)[0]
+    awcs['IY'] = idlwcso['IY'].astype(int)[0]
+    awcs['CRPIX'] = np.array([idlwcso['CRPIX'][0][0], idlwcso['CRPIX'][0][1]]).astype(float)
+    awcs['CRVAL'] = np.array([idlwcso['CRVAL'][0][0], idlwcso['CRVAL'][0][1]]).astype(float)
+    awcs['CTYPE'] = np.array([idlwcso['CTYPE'][0][0], idlwcso['CTYPE'][0][1]]).astype(str)
+    awcs['CNAME'] = np.array([idlwcso['CNAME'][0][0], idlwcso['CNAME'][0][1]]).astype(str)
+    awcs['CUNIT'] = np.array([idlwcso['CUNIT'][0][0], idlwcso['CUNIT'][0][1]]).astype(str)
+    awcs['CDELT'] = np.array([idlwcso['CDELT'][0][0], idlwcso['CDELT'][0][1]]).astype(float)
+    awcs['PC'] = np.array([[idlwcso['PC'][0][0][0], idlwcso['PC'][0][0][1]], [idlwcso['PC'][0][1][0], idlwcso['PC'][0][1][1]]])
+    awcs['PROJ_NAMES'] = np.array(idlwcso['PROJ_NAMES'][0]).astype(str)
+    awcs['PROJ_VALUES'] = np.array(idlwcso['PROJ_VALUES'][0]).astype(float)
+    awcs['ROLL_ANGLE'] = idlwcso['ROLL_ANGLE'].astype(float)[0]
+    awcs['SIMPLE'] = idlwcso['SIMPLE'].astype(int)[0]
+    
+    timeDict = {}
+    for item in idlwcso['TIME'][0][0].dtype.names:
+        timeDict[item] = idlwcso['TIME'][0][0][item].decode("utf-8")
+    awcs['TIME'] = timeDict
+    
+    pos = []
+    for item in idlwcso['POSITION'][0][0]:
+        pos.append(item)
+    awcs['POSITION'] = pos
+
+    return awcs 
 
 def fitshead2wcs(hdr,system=''):
     # port of IDL version bc astropy is different somehow
@@ -352,7 +387,7 @@ def wcs_proj_azp(my_wcs, coord):
                 phi0 = my_wcs['proj_values'][idx[0]]
             if item == 'PV1_2':
                 idx = np.where(my_wcs['proj_names'] == item)[0]
-                phi0 = my_wcs['proj_values'][idx[0]]
+                theta0 = my_wcs['proj_values'][idx[0]]
     if (phi0 != 0) or (theta0 != 90):
         print ('Non-standard PVi_1 and/or PVi_2 values -- ignored') # so why did we bother checking?
     
@@ -537,9 +572,108 @@ def wcs_inv_proj_azp(my_wcs, coord):
     return coord
 
 def wcs_proj_zpn(my_wcs, coord):
-    print (coord)
+    dtor = np.pi / 180.
+    halfpi = np.pi / 2
+    cx = cunit2rad[my_wcs['cunit'][0]]
+    cy = cunit2rad[my_wcs['cunit'][1]]
     
-    print (sd)
+    phi0 = 0.
+    theta0 = 90.
+    if 'proj_names' in my_wcs:
+        for item in my_wcs['proj_names']:
+            if item == 'PV1_1':
+                idx = np.where(my_wcs['proj_names'] == item)[0]
+                phi0 = my_wcs['proj_values'][idx[0]]
+            if item == 'PV1_2':
+                idx = np.where(my_wcs['proj_names'] == item)[0]
+                theta0 = my_wcs['proj_values'][idx[0]]
+    if (phi0 != 0) or (theta0 != 90):
+        print ('Non-standard PVi_1 and/or PVi_2 values -- ignored') # so why did we bother checking?
+    
+    # Convert to rads
+    phi0, theta0 = phi0 * dtor, theta0 * dtor
+    
+    # Get the polynomial coefficients
+    holdMypp = np.empty(21)
+    if 'proj_names' in my_wcs:
+        for i in range(21):
+            name = 'PV'+str(my_wcs['iy']+1)+'_'+str(i)
+            idxs = np.where(my_wcs['proj_names'] == name)[0]
+            if len(idxs) > 0:
+                holdMypp[i] = my_wcs['proj_values'][idxs[0]]
+    holdMypp = np.array(holdMypp)
+    
+    haspp = np.where(holdMypp !=0)[0]
+    if len(haspp) > 0:
+        n = haspp[-1]
+    else:
+        print('No polynomial coordinates specified')
+
+    pp = holdMypp[:n+1]
+    pderiv = (pp*range(n+1))[1:-1]
+    
+    # Get the celestial lon/lat of the fiducial point
+    alpha0 = my_wcs['crval'][my_wcs['ix']] * cx
+    delta0 = my_wcs['crval'][my_wcs['iy']] * cy
+    
+    # Get the native longitude of the celesital pole
+    phip = 180.
+    if delta0 >= theta0: phip = 0.
+    if 'proj_names' in my_wcs:
+        idx = np.where(my_wcs['proj_names'] == 'LONPOLE')[0]
+        if len(idx) > 0:
+            phip = my_wcs['proj_values'][idx[0]]
+        name = 'PV'+str(my_wcs['ix']+1)+'_3'
+        idx = np.where(my_wcs['proj_names'] == name)[0]    
+        if len(idx) > 0:
+            phip = my_wcs['proj_values'][idx[0]]
+    
+    if (phip!=180.) & (delta0 !=halfpi):
+        print('Non standard LONPOLE value '+ str(phip))
+    phip = phip * dtor
+    
+    # Calculate the native spherical coordinates
+    phi = np.arctan2(cx*coord[0,:], -cy*coord[1,:])
+    r_theta = np.sqrt((cx*coord[0,:])**2 + (cy*coord[1,:])**2)
+    
+    # Reiteratively solve for gamma
+    tolerance = 1e-8
+    max_iter = 1000
+    gamma = np.arctan(r_theta)
+    n_iter = 0
+    
+    while n_iter < max_iter:
+        n_iter += 1
+        diff = (np.polyval(pp[::-1], gamma) - r_theta) / np.polyval(pderiv[::-1], gamma)
+        gamma = gamma - diff
+        if np.max(np.abs(diff)) < tolerance: n_iter = max_iter+1
+    
+    theta = halfpi - gamma
+    w_missing = np.where(theta < - halfpi)
+    
+    # Clculate the celestial spherical coordinates
+    if delta0 >= halfpi:
+        alpha = alpha0 + phi - phip - np.pi
+        delta = theta
+    elif delta0 <= -halfpi:
+        alpha = alpha0 - phi + phip
+        delta = -theta
+    else:
+        dphi = phi - phip
+        cos_dphi = np.cos(dphi)
+        sin_theta = np.sin(theta)
+        cos_theta = np.cos(theta)
+        alpha = alpha0 + np.arctan(-cos_theta * np.sin(dphi), sin_theta * np.cos(delta0) - cos_theta * np.sin(delta0) * cos_dphi)
+        delta = np.arcsin(sin_theta * np.sin(delta0) + cos_theta * np.cos(delta0) * cos_dphi)
+
+    # Convert back to original units
+    coord[0,:] = alpha / cx
+    coord[1,:] = delta / cy
+    
+    # Ignoring missing
+    return coord
+
+
 
 def wcs_get_coord(my_wcs, pixels=None):
     # Assuming an appropriate header
@@ -556,7 +690,6 @@ def wcs_get_coord(my_wcs, pixels=None):
             pixels = pixels.reshape([2,1])
         # assume shaped fine for multipoints?
         coord = pixels
-        print (coord.shape)  
     else:
         num_elements = np.prod(naxis)
         index = np.arange(num_elements).astype(int)
@@ -576,10 +709,10 @@ def wcs_get_coord(my_wcs, pixels=None):
     # Calcualte immedate (relative coordinates)
     # Assuming were doing pc
     coord = np.matmul(my_wcs['pc'], coord)
+ 
     # Skipping more distortion (264 - 284)
     coord[0,:] = coord[0,:]*my_wcs['cdelt'][0]
     coord[1,:] = coord[1,:]*my_wcs['cdelt'][1]
-    
     # Skipping more distortion (288-301)
     
     # Assume we don't just want relative proj
@@ -600,7 +733,7 @@ def wcs_get_coord(my_wcs, pixels=None):
     elif proj == 'AZP':
         coord = wcs_proj_azp(my_wcs, coord)
     elif proj == 'ZPN':
-        coofd = wcs_proj_zpn(my_wcs, coord)
+        coord = wcs_proj_zpn(my_wcs, coord)
     else:
         print('Other projections not yet ported including '+proj)
         print(Quit)
@@ -608,7 +741,10 @@ def wcs_get_coord(my_wcs, pixels=None):
     # Skipping projextion, pos_long, nowrap since not hit in simple version
     
     # Reformat
-    coord = coord.reshape([2, naxis1, naxis2])
+    if type(pixels) != type(None):
+        coord.reshape(pixels.shape)
+    else:
+        coord = coord.reshape([2, naxis1, naxis2])
     return coord    
     
     

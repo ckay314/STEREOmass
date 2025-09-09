@@ -9,10 +9,10 @@ import astropy.units as u
 from astropy.coordinates import SkyCoord
 from sunpy.time import parse_time
 from sunpy.coordinates import get_horizons_coord
-from sunspyce import get_sunspyce_hpc_point, get_sunspyce_roll
+from sunspyce import get_sunspyce_hpc_point, get_sunspyce_roll, get_sunspyce_coord, get_sunspyce_lonlat, get_sunspyce_p0_angle, get_sunspyce_carr_rot
 from sunpy.coordinates import spice
 import scipy.io
-from wcs_funs import fitshead2wcs, wcs_get_coord
+from wcs_funs import fitshead2wcs, wcs_get_coord, idlsav2wcs
 
 
 
@@ -318,14 +318,15 @@ def get_wispr_pointing(shdr, doSpice=True, doCoords=False):
             idl_save = wcalpath + 'rollcompm180.sav'
         idlRoll = scipy.io.readsav(idl_save, python_dict=True)
         
-        idlwcso = scipy.io.readsav(wcalpath+'wcso.sav', python_dict=True)
-        wcso =idlwcso['wcso']
-        wcso.naxis = wcso.naxis / np.sqrt(shdr['nbin'])
-        wcso.crpix = wcso.crpix / np.sqrt(shdr['nbin'])
-        wcso.cdelt = wcso['cdelt'] * np.sqrt(shdr['nbin'])
+        
+        
+        wcso = idlsav2wcs(wcalpath+'wcso.sav')
+        wcso['NAXIS'] = wcso['NAXIS'] / np.sqrt(shdr['nbin'])
+        wcso['CRPIX'] = wcso['CRPIX'] / np.sqrt(shdr['nbin'])
+        wcso['CDELT'] = wcso['CDELT'] * np.sqrt(shdr['nbin'])
         # Things saved as arrays are [array, dtype]
-        wcso.pc[0] = [[np.cos(roll1 * dtor), np.sin(roll1 * dtor)], [-np.sin(roll1 * dtor), np.cos(roll1 * dtor)]]
-        wcso.crval[0] = [shdr['crval1'] - xcor, shdr['crval2'] - ycor]
+        wcso['PC'] = np.transpose([[np.cos(roll1 * dtor), np.sin(roll1 * dtor)], [-np.sin(roll1 * dtor), np.cos(roll1 * dtor)]])
+        wcso['CRVAL'] = [shdr['crval1'] - xcor, shdr['crval2'] - ycor]
         
         # poly(val, coeffs) IDL -> polyval(coeffs[::-1], val)
         shdr['CRVAL1'] = shdr['CRVAL1'] + np.polyval(idlRoll['p1'][::-1], roll)[0]
@@ -338,14 +339,118 @@ def get_wispr_pointing(shdr, doSpice=True, doCoords=False):
         shdr['PC2_2']=pc[1,1]
         
         wcs = fitshead2wcs(shdr)
-        pt1 = wcs_get_coord(wcs, np.array([wcs['naxis'][0], wcs['naxis'][1]]).astype(int)/2)
-        print(sd)
-        #pt2 = wcs_get_coord(wcso, [wcs.naxis[0], wcso.naxis[1]]/2)
-        #diff = pt1 - pt2
-        #print (diff)
         
-    coords = None
-    return coords
+        # duplicate all the keys in the sav file wcs to lower case
+        # seems a little risky if things are changed but not easy to sort 
+        # out a consisent set without dups
+        copyKeys = []
+        for key in wcso:
+            copyKeys.append(key)
+        for key in copyKeys:
+            wcso[key.lower()] = wcso[key]
+            
+            
+        pt1 = wcs_get_coord(wcs, np.array([wcs['naxis'][0], wcs['naxis'][1]]).astype(int)/2)
+        pt2 = wcs_get_coord(wcso, np.array([wcs['naxis'][0], wcso['NAXIS'][1]]).astype(int)/2)
+        diff = (pt1 - pt2).reshape([-1])
+        
+        shdr['CRVAL1'] = shdr['CRVAL1'] - diff[0]
+        shdr['CRVAL2'] = shdr['CRVAL2'] - diff[1]
+
+        shdr['CRVAL1A']=shdr['CRVAL1A']+ np.polyval(idlRoll['p1'][::-1], roll)[0]
+        shdr['CRVAL2A']=shdr['CRVAL2A']+ np.polyval(idlRoll['p2'][::-1], roll)[0]
+        roll=roll+np.polyval(idlRoll['p3'][::-1],roll)[0]
+        pc = [[np.cos(roll*dtor), -np.sin(roll*dtor)], [np.sin(roll*dtor), np.cos(roll*dtor)]] * skew
+        shdr['PC1_1A']=pc[0,0]
+        shdr['PC1_2A']=pc[0,1] # swapped index to match IDL
+        shdr['PC2_1A']=pc[1,0] # swapped index to match IDL
+        shdr['PC2_2A']=pc[1,1]
+        
+    if not shdr['rectify']:
+        print('Hitting ported but untested part in get_wispr_pointing')
+        shdr0 = shdr
+        shdr['crpix1']= shdr0['naxis1'] - shdr0['crpix2'] + 1
+        shdr['crpix2']= shdr0['naxis2'] - shdr0['crpix1'] + 1
+        shdr['crpix1A']= shdr['crpix1']
+        shdr['crpix2A']= shdr['crpix2']
+    
+        shdr['cdelt1'] = shdr0['cdelt2']
+        shdr['cdelt2'] = -shdr0['cdelt1']
+        shdr['cdelt1A'] = shdr0['cdelt2A']
+        shdr['cdelt2A'] = -shdr0['cdelt1A']
+
+        shdr['pc1_2'] = shdr0['pc2_1']
+        shdr['pc2_1'] = shdr0['pc1_2']
+        shdr['pc1_2a']= shdr0['pc2_1a']
+        shdr['pc2_1a']= shdr0['pc1_2a']
+
+        shdr['LONPOLE'] = -90.0
+        shdr['LONPOLEa'] = -90.0
+
+        shdr['PV1_3'] = -90.0
+        shdr['PV1_3a'] = -90.0
+    
+    if doCoords:
+        point = get_sunspyce_hpc_point(shdr['DATE-AVG'],'psp', doDeg=True)
+        shdr['SC_PITCH'] = point[1]
+        shdr['SC_ROLL']  = point[2]
+        shdr['SC_YAW']   = point[0]
+        
+        pointb =  get_sunspyce_hpc_point(shdr['DATE-BEG'],'psp', doDeg=True)
+        pointe =  get_sunspyce_hpc_point(shdr['DATE-END'],'psp', doDeg=True)
+        if np.max(np.abs(pointb-point, pointb-pointe)) > 0.1:
+            shdr['OBS_MODE'] = 'MOVING'
+            print('Attitude change during image detected!!!')
+        if np.abs(shdr['SC_ROLL']) > 8:
+            shdr['OBS_MODE'] = 'ROLLED'
+        elif np.max(np.abs(point[:2])) > 1:
+            shdr['OBS_MODE'] = 'OFFPOINT'
+        
+        
+        aCo = get_sunspyce_coord(shdr['DATE-AVG'],'psp', system='HAE', doVelocity=False, doMeters=True)    
+        shdr['HAEX_OBS'] = aCo[0]
+        shdr['HAEY_OBS'] = aCo[1]
+        shdr['HAEZ_OBS'] = aCo[2] 
+        
+        aCo = get_sunspyce_coord(shdr['DATE-AVG'],'psp', system='HCI', doMeters=True)
+        shdr['HCIX_OBS'] = aCo[0]
+        shdr['HCIY_OBS'] = aCo[1]
+        shdr['HCIZ_OBS'] = aCo[2]
+        shdr['HCIX_VOB'] = aCo[3]
+        shdr['HCIY_VOB'] = aCo[4]
+        shdr['HCIZ_VOB'] = aCo[5]    
+        
+        aCo = get_sunspyce_coord(shdr['DATE-AVG'],'psp', system='HEE', doVelocity=False, doMeters=True)
+        shdr['HEEX_OBS'] = aCo[0]
+        shdr['HEEY_OBS'] = aCo[1]
+        shdr['HEEZ_OBS'] = aCo[2]
+        
+        aCo = get_sunspyce_coord(shdr['DATE-AVG'],'psp', system='HEQ', doVelocity=False, doMeters=True)
+        shdr['HEQX_OBS'] = aCo[0]
+        shdr['HEQY_OBS'] = aCo[1]
+        shdr['HEQZ_OBS'] = aCo[2]
+        
+        aCo = get_sunspyce_lonlat(shdr['DATE-AVG'],'psp', system='HEEQ', doDegrees=True, doMeters=True)
+        shdr['HGLT_OBS'] = aCo[2]
+        shdr['HGLN_OBS'] = aCo[1]
+        
+        aCo = get_sunspyce_lonlat(shdr['DATE-AVG'],'psp', system='Carrington', doDegrees=True, doMeters=True)
+        shdr['CRLN_OBS'] = aCo[1]
+        shdr['CRLT_OBS'] = aCo[2]
+        
+        # Set solar radius
+        shdr['RSUN_REF'] = 6.95508e8
+        shdr['RSUN_ARC'] = np.arctan(shdr['RSUN_REF'] / aCo[0]) * 180 / np.pi * 3600
+        
+        # Calc time for light to reach sc
+        shdr['SUN_TIME'] = aCo[0] / 299792458.
+        earth_coord = get_sunspyce_coord(shdr['DATE-AVG'], 'EARTH', system='HEQ', doMeters=True, doVelocity=False)
+        shdr['EAR_TIME'] = earth_coord[0] / 299892458 - shdr['SUN_TIME']
+        shdr['SOLAR_EP'] = get_sunspyce_p0_angle(shdr['DATE-AVG'], 'psp', doDegrees=True)
+        # this seems to be set to an int even though its not flagged as such in the spice call?
+        shdr['CAR_ROT'] = int(get_sunspyce_carr_rot(shdr['DATE-AVG'], spacecraft='psp') )
+    
+    return shdr
     
 
 def wispr_prep(filesIn, outSize=None, silent=False, biasOff=False, biasOffsetOff=False, lin_correct=False, straylightOff=False, pointingOff=False):
@@ -406,7 +511,11 @@ def wispr_prep(filesIn, outSize=None, silent=False, biasOff=False, biasOffsetOff
             
         # Pointing
         if not pointingOff:
-            coords = get_wispr_pointing(hdr, doCoords=True)
+            hdr = get_wispr_pointing(hdr, doCoords=True)
+            
+        im[np.where(im < 0)] = 0
+        
+        
    
        
             
