@@ -192,18 +192,17 @@ if __name__ == '__main__':
     #ims, hdrs = secchi_prep([fileA, fileB], outSize=([1024,1024]))
     
     # PSP WISPR
-    #fileA = '/Users/kaycd1/wombat/fits/testing/psp_L2_wispr_20250610T000025_V0_1221.fits'
-    #fileB = '/Users/kaycd1/wombat/fits/testing/psp_L2_wispr_20250610T203026_V0_1221.fits'
-    fileA = '/Users/kaycd1/wombat/fits/testing/psp_L2_wispr_20250322T010204_V0_2222.fits'
-    fileB = '/Users/kaycd1/wombat/fits/testing/psp_L2_wispr_20250322T010702_V0_2222.fits'
+    fileA = '/Users/kaycd1/wombat/fits/testing/psp_L2_wispr_20250610T000025_V0_1221.fits'
+    fileB = '/Users/kaycd1/wombat/fits/testing/psp_L2_wispr_20250610T203026_V0_1221.fits'
+    #fileA = '/Users/kaycd1/wombat/fits/testing/psp_L2_wispr_20250322T010204_V0_2222.fits'
+    #fileB = '/Users/kaycd1/wombat/fits/testing/psp_L2_wispr_20250322T010702_V0_2222.fits'
     ims, hdrs = wispr_prep([fileA, fileB], straylightOff=True)
     
     #print (sd)
     diff = ims[1] - ims[0]
-    print (diff[200,100])
     
     mass, hdr = calcCMEmass(diff, hdrs[1])
 
     fig = plt.figure()
-    plt.imshow(mass, vmin=-0.0005, vmax=0.0005)
+    plt.imshow(mass, vmin=-0.0003, vmax=0.0003, cmap='gray')
     plt.show()

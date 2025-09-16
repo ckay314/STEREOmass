@@ -48,6 +48,7 @@ def fitshead2wcs(hdr,system=''):
     # skipping hdr check, assuming is fine/tbd
     
     tags = list(hdr.keys())
+    tags = [aTag.upper() for aTag in tags]
     
     # Skipping Nan/nan check (250-257)
     # Assuming column is not passed (258-325)
@@ -671,6 +672,92 @@ def wcs_proj_zpn(my_wcs, coord):
     # Ignoring missing
     return coord
 
+def wcs_inv_proj_zpn(my_wcs, coord):
+    # Check shape of input array
+    singlePt = False
+    if len(coord.shape) == 1:
+        singlePt = True
+        coord = coord.reshape([2,1])
+    
+    
+    dtor = np.pi / 180.
+    halfpi = np.pi / 2
+    cx = cunit2rad[my_wcs['cunit'][0]]
+    cy = cunit2rad[my_wcs['cunit'][1]]
+    
+    phi0 = 0.
+    theta0 = 90.
+    if 'proj_names' in my_wcs:
+        for item in my_wcs['proj_names']:
+            if item == 'PV1_1':
+                idx = np.where(my_wcs['proj_names'] == item)[0]
+                phi0 = my_wcs['proj_values'][idx[0]]
+            if item == 'PV1_2':
+                idx = np.where(my_wcs['proj_names'] == item)[0]
+                theta0 = my_wcs['proj_values'][idx[0]]
+    if (phi0 != 0) or (theta0 != 90):
+        print ('Non-standard PVi_1 and/or PVi_2 values -- ignored') # so why did we bother checking?
+    
+    # Convert to rads
+    phi0, theta0 = phi0 * dtor, theta0 * dtor
+    
+    # Get the polynomial coefficients
+    holdMypp = np.zeros(21)
+    if 'proj_names' in my_wcs:
+        for i in range(21):
+            name = 'PV'+str(my_wcs['iy']+1)+'_'+str(i)
+            idxs = np.where(my_wcs['proj_names'] == name)[0]
+            if len(idxs) > 0:
+                holdMypp[i] = my_wcs['proj_values'][idxs[0]]
+    holdMypp = np.array(holdMypp)
+    haspp = np.where(holdMypp !=0)[0]
+    if len(haspp) > 0:
+        n = haspp[-1]
+    else:
+        print('No polynomial coordinates specified')
+
+    pp = holdMypp[:n+1]
+    
+    # Get the celestial lon/lat of the fiducial point
+    alpha0 = my_wcs['crval'][my_wcs['ix']] * cx
+    delta0 = my_wcs['crval'][my_wcs['iy']] * cy
+    
+    # Get the native longitude of the celesital pole
+    phip = 180.
+    if delta0 >= theta0: phip = 0.
+    if 'proj_names' in my_wcs:
+        idx = np.where(my_wcs['proj_names'] == 'LONPOLE')[0]
+        if len(idx) > 0:
+            phip = my_wcs['proj_values'][idx[0]]
+        name = 'PV'+str(my_wcs['ix']+1)+'_3'
+        idx = np.where(my_wcs['proj_names'] == name)[0]    
+        if len(idx) > 0:
+            phip = my_wcs['proj_values'][idx[0]]
+    
+    if (phip!=180.) & (delta0 !=halfpi):
+        print('Non standard LONPOLE value '+ str(phip))
+    phip = phip * dtor
+    
+    # Convert from celestial to native spherical coords
+    alpha = cx * coord[0,:]
+    delta = cy * coord[1,:]
+    dalpha = alpha - alpha0
+    cos_dalpha = np.cos(dalpha)
+    sin_delta = np.sin(delta)
+    cos_delta = np.cos(delta)
+    phi = phip + np.arctan2(-cos_delta * np.sin(dalpha), sin_delta * np.cos(delta0) - cos_delta * np.sin(delta0) * cos_dalpha)
+    theta = np.arcsin(sin_delta * np.sin(delta0) + cos_delta * np.cos(delta0) * cos_dalpha)
+    
+    # Calculate the relative coordinates
+    r_theta = np.polyval(pp[::-1], halfpi-theta)
+    x = r_theta * np.sin(phi)
+    y = -r_theta * np.cos(phi)
+    coord[0,:] = x / cx    
+    coord[1,:] = y / cy
+    
+    if singlePt:
+        coord = coord.flatten()
+    return coord
 
 
 def wcs_get_coord(my_wcs, pixels=None):
@@ -758,23 +845,28 @@ def wcs_get_pixel(my_wcs, coord,  doQuick=False, force_proj=False, noPC=False):
     if len(coord.shape) == 1:
         singlePt = True
         coord = coord.reshape([2,1])
-    
     if my_wcs['projection'] == 'TAN':
         outpix = wcs_inv_proj_tan(my_wcs, coord, doQuick=doQuick)
     elif my_wcs['projection'] == 'AZP':
         outpix = wcs_inv_proj_azp(my_wcs, coord)
+    elif my_wcs['projection'] == 'ZPN':
+        outpix = wcs_inv_proj_zpn(my_wcs, coord)
     else:
         print ('Other projections not ported')
         print (Quit)
         
     # Skipping subtract ref values for non-spherical and de-app tablular
-    
     coord[0,:] = outpix[0,:] / my_wcs['cdelt'][0]
     coord[1,:] = outpix[1,:] / my_wcs['cdelt'][1]
+    
     #temp = np.copy(coord)
+    pc = my_wcs['pc']
+    
+    
     if not noPC:
         pc = my_wcs['pc']
-        coord = np.matmul(np.transpose(pc), coord)
+        pci  = np.linalg.inv(pc)
+        coord = np.matmul(pci, coord)
     
     # Add in reference pixel
     coord[0,:] = coord[0,:] + my_wcs['crpix'][0] -1

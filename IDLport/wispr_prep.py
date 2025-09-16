@@ -549,6 +549,7 @@ def wispr_prep(filesIn, outSize=None, silent=False, biasOff=False, biasOffsetOff
         im[np.where(im < 0)] = 0
         
         hdr, im = wispr_img_stats(hdr, im)
+
         
         # Return the things
         images_out.append(im)
