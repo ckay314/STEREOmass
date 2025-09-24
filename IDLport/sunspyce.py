@@ -50,6 +50,14 @@ def get_sunspyce_hpc_point(date, spacecraft, instrument=None, doDeg=False, doRad
         roll = roll + halfpi
         if np.abs(roll) > np.pi:
             roll = roll - math.copysign(twopi, roll)
+    else:
+        roll, pitch, yaw = spice.m2eul(cmat, 1,3,2)
+        yaw = halfpi - yaw
+        if sc == scDict['solo']:
+            roll = roll + halfpi
+        if sc == scDict['stb']:
+            roll = roll + np.pi
+            if roll > np.pi: roll = roll - twopi
 
     # Ignoring stereo post conjunction
     
@@ -128,14 +136,14 @@ def get_sunspyce_cmat(date, spacecraft, system=None, instrument=None, tolerance=
     cmat = np.zeros([nVec, nVec])
     
     sclkdp = spice.sce2c(int(sc), et)
-     
+    
     # Adding frcode that gets hit by roll GEI code 
     if not frame:
         if system == 'GEI':
             frame = 'J2000' 
 
     cmat, clkout = spice.ckgp(int(sc)*1000, sclkdp, tol, frame)
-
+    
     # Modify the c-matrix based on the instrument keyword
     if instrument:
         rotMat = spice.pxform(sc_base, instrument, et)
@@ -143,6 +151,8 @@ def get_sunspyce_cmat(date, spacecraft, system=None, instrument=None, tolerance=
             sys.exit('Invalid rotation matrix for instrument')
         
         # Solar orbiter thing ignoring for now
+        if sc == '-144':
+            rotMat = np.matmul([[-1,0,0],[0,-1,0],[0,0,1]], rotMat)
         ccmat = np.matmul(rotMat, cmat)
         # Assume c matrix was found
     else:
@@ -187,7 +197,14 @@ def get_sunspyce_roll(date, spacecraft, system=None, instrument=None, doRad=Fals
         if np.abs(roll) > np.pi:
             roll = roll - math.copysign(twopi, roll)
     else:
-        sys.exit('Only PSP ported in get_sunspyce_roll')
+        roll, pitch, yaw = spice.m2eul(cmat, 1,2,3)
+        pitch = - pitch
+        if sc_stereo:
+            roll = roll = halfpi
+        if sc == '-235':
+            roll = roll + np.pi
+        if np.abs(roll) > np.pi:
+            roll = roll - math.copysign(twopi, roll)
         
     # Skipping post conjuction
     

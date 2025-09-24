@@ -5,6 +5,7 @@ import numpy as np
 global topDir, LSKfile
 topDir = '/Users/kaycd1/ssw/psp/gen/data/spice'
 otherDir = '/Users/kaycd1/ssw/packages/sunspice/data'
+soloDir = '/Users/kaycd1/ssw/so/gen/data/sunspice'
 
 def setupPSPkernels():
     # Get any loaded files
@@ -112,6 +113,60 @@ def setupPSPkernels():
             if thisKern not in loadKerns:
                 spice.furnsh(thisKern)
                 
+                
+    # Solar Orbiter things
+    # (also needs the naif0012, de421, pck00011_n0066, heliospheric, sdo_body_name)        
+    # Most of this needs to be cleaned up to read in newest version not hardcoded
+    if os.path.isdir(soloDir):
+        files = os.listdir(soloDir)
+        
+        if 'gen' in files:
+            genF = os.listdir(soloDir+'/'+'gen')
+            if 'solo_rtn.tf' in genF:
+                thisKern = soloDir+'/'+'gen/solo_rtn.tf'
+                if thisKern not in loadKerns:
+                    spice.furnsh(thisKern)
+            if 'solo_ANC_soc-sc-fk_V09.tf' in genF:
+                thisKern = soloDir+'/'+'gen/solo_ANC_soc-sc-fk_V09.tf'
+                if thisKern not in loadKerns:
+                    spice.furnsh(thisKern)
+            if 'solo_ANC_soc-ops-fk_V02.tf' in genF:
+                thisKern = soloDir+'/'+'gen/solo_ANC_soc-ops-fk_V02.tf'
+                if thisKern not in loadKerns:
+                    spice.furnsh(thisKern)
+            if 'solo_ANC_soc-sci-fk_V08.tf' in genF:
+                thisKern = soloDir+'/'+'gen/solo_ANC_soc-sci-fk_V08.tf'
+                if thisKern not in loadKerns:
+                    spice.furnsh(thisKern)
+        if 'orbit' in files:
+            orbF = os.listdir(soloDir+'/'+'orbit')
+            if 'solo_ANC_soc-orbit-stp_20200210-20301120_379_V1_00476_V01.bsp' in orbF:
+                thisKern = soloDir+'/'+'orbit/solo_ANC_soc-orbit-stp_20200210-20301120_379_V1_00476_V01.bsp'
+                if thisKern not in loadKerns:
+                    spice.furnsh(thisKern)
+        
+        if 'att' in files:
+            attF = os.listdir(soloDir+'/'+'att')
+            for aF in attF:
+                if '.bc' in aF:
+                    thisKern = soloDir+'/'+'att/'+aF
+                    if thisKern not in loadKerns:
+                        spice.furnsh(thisKern)
+                        
+        if 'sclk' in files:
+            sclkF = os.listdir(soloDir+'/'+'sclk')
+            if 'solo_ANC_soc-sclk-fict_20000101_V01.tsc' in sclkF:
+                thisKern = soloDir+'/'+'sclk/'+'solo_ANC_soc-sclk-fict_20000101_V01.tsc'
+                if thisKern not in loadKerns:
+                    spice.furnsh(thisKern)
+        
+        if 'ik' in files:
+            ikF = os.listdir(soloDir+'/'+'ik')
+            for aF in ikF:
+                if '.ti' in aF:
+                    thisKern = soloDir+'/'+'ik/'+aF
+                    if thisKern not in loadKerns:
+                        spice.furnsh(thisKern)
 
 if False:
     setupPSPkernels()

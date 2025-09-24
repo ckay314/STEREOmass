@@ -87,7 +87,7 @@ def fitshead2wcs(hdr,system=''):
         print (Quit)
         
     
-    # Extract CTYPE keywords 
+    # Extract CTYPE keywords (431)
     # Assume that the ctype is found so 1 is x and 2 is y
     if 'CTYPE1' in tags:
         crp1 = hdr['CRPIX1'] 
@@ -116,10 +116,28 @@ def fitshead2wcs(hdr,system=''):
         pc = np.zeros([n_axis,n_axis])
         for i in range(n_axis):
             for j in range(n_axis):
-                pc[i,j] = hdr['PC'+str(i+1)+'_'+str(j+1)+system]                
-    elif variation == 'CROTA':
-        print ('Issue in fitshead2wcs, havent coded crota parts')
-        print (Quit)
+                pc[i,j] = hdr['PC'+str(i+1)+'_'+str(j+1)+system]   
+    elif variation == 'CROTA': # 594
+        # un-IDLifying a lot of this bc we can
+        if hdr['CROTA1'] == hdr['CROTA2']:
+            roll_angle = hdr['CROTA1']
+            hdr['SC_ROLL'] = roll_angle
+        else:
+            sys.exit('CROTA inconsistent, cannot calculate roll angle')
+
+        cdelt1, cdelt2 = hdr['CDELT1'], hdr['CDELT1']
+        pc = np.zeros([n_axis,n_axis])
+        if cdelt1 * cdelt2 == 0:
+            sys.exit('Zero in cdelt, cannot calculate pc matrix')
+        else:
+            lam = cdelt2 / cdelt1
+            cosa = np.cos(roll_angle * np.pi / 180.)
+            sina = np.sin(roll_angle * np.pi / 180.)
+            pc[0,0] = cosa
+            pc[0,1] = -lam * sina
+            pc[1,0] = sina / lam
+            pc[1,1] = cosa
+ 
                 
     # Determine type of coord sys
     if hdr['CTYPE1'+system][:4] == 'RA--':
@@ -128,6 +146,10 @@ def fitshead2wcs(hdr,system=''):
     elif  hdr['CTYPE1'+system][:4] == 'HPLN':
         coord_type = 'Helioprojective-Cartesian'
         projection = hdr['CTYPE1'+system][5:]
+    elif hdr['CTYPE1'+system][:4] in ['SOLA']:
+        coord_type = 'Helioprojective-Cartesian'
+        if (cunit1[:3].upper() in ['ARC', 'DEG', 'MAS']) & (cunit2[:3].upper() in ['ARC', 'DEG', 'MAS']):
+            projection = 'TAN'
     else:
         print ('Issue in fitshead2wcs, havent coded non RA coord types')
         print (Quit)
@@ -286,8 +308,8 @@ def wcs_inv_proj_tan(my_wcs, coord, doQuick=False, force_proj=False):
         
     dtor = np.pi / 180.
     halfpi = np.pi / 2
-    cx = cunit2rad[my_wcs['cunit'][0]]
-    cy = cunit2rad[my_wcs['cunit'][1]]
+    cx = cunit2rad[my_wcs['cunit'][0].lower()]
+    cy = cunit2rad[my_wcs['cunit'][1].lower()]
     
     # Quick version
     if not force_proj:
