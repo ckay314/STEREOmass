@@ -5,7 +5,9 @@ import astropy.units as u
 #from astropy.wcs import WCS
 from secchi_prep import secchi_prep
 from wispr_prep import wispr_prep
-from wcs_funs import fitshead2wcs, get_Suncent, wcs_get_coord
+from lasco_prep import c2_prep, c3_prep
+from wcs_funs import fitshead2wcs, get_Suncent, wcs_get_coord, get_Suncent, wcs_get_pixel
+from astropy.io import fits
 
 import matplotlib.pyplot as plt
 
@@ -148,6 +150,8 @@ def calcCMEmass(img, hdr, box=None, onlyNe=False, doPB=False):
     hdr['history'] = 'Converted to mass units using calcCMEmass.py'
     
     return mass, hdr
+
+
     
 if __name__ == '__main__':
 
@@ -192,16 +196,46 @@ if __name__ == '__main__':
     #ims, hdrs = secchi_prep([fileA, fileB], outSize=([1024,1024]))
     
     # PSP WISPR
-    fileA = '/Users/kaycd1/wombat/fits/testing/psp_L2_wispr_20250610T000025_V0_1221.fits'
+    '''fileA = '/Users/kaycd1/wombat/fits/testing/psp_L2_wispr_20250610T000025_V0_1221.fits'
     fileB = '/Users/kaycd1/wombat/fits/testing/psp_L2_wispr_20250610T203026_V0_1221.fits'
     #fileA = '/Users/kaycd1/wombat/fits/testing/psp_L2_wispr_20250322T010204_V0_2222.fits'
     #fileB = '/Users/kaycd1/wombat/fits/testing/psp_L2_wispr_20250322T010702_V0_2222.fits'
-    ims, hdrs = wispr_prep([fileA, fileB], straylightOff=True)
+    ims, hdrs = wispr_prep([fileA, fileB], straylightOff=True)'''
     
+    # SoloHI
+    '''fileB = '/Users/kaycd1/wombat/fits/solo_L2_solohi-3fg_20220329T054157_V02.fits'
+    fileA = '/Users/kaycd1/wombat/fits/solo_L2_solohi-3fg_20220329T051757_V02.fits'
+    with fits.open(fileB) as hdulist:
+        imB  = hdulist[0].data
+        hdrB = hdulist[0].header
+    with fits.open(fileA) as hdulist:
+        imA  = hdulist[0].data
+        hdrA = hdulist[0].header
+    ims = [imA, imB]
+    hdrs = [hdrA, hdrB]'''
+    
+    # LASCO - this isn't a 100% match but within a few percent and not worth porting
+    # the slightly diff version of lasco cme mass call
+    # also unclear why we pre-normalize this one and nobody else
+    fname1 = '/Users/kaycd1/wombat/fits/C3_32048310.fts'
+    fname2 = '/Users/kaycd1/wombat/fits/C3_32048311.fts'
+    ims, hdrs = c3_prep([fname1, fname2])
+    hb, ha = hdrs[0], hdrs[1]
+    calb, cala = ims[0], ims[1]
+    sxa = 10
+    sxb=ha['naxis1'] - 10
+    sya=ha['naxis2'] - 10
+    syb=ha['naxis2'] - 5
+    asub = cala[sya:syb+1, sxa:sxb+1]
+    bsub = calb[sya:syb+1, sxa:sxb+1]
+    w = np.where(asub > 0)
+    rsub = bsub[w]/asub[w]
+    fac = np.mean(rsub)
+    dif = cala*fac-calb
     #print (sd)
-    diff = ims[1] - ims[0]
+    #diff = ims[1] - ims[0]
     
-    mass, hdr = calcCMEmass(diff, hdrs[1])
+    mass, hdr = calcCMEmass(dif, hdrs[1])
 
     fig = plt.figure()
     plt.imshow(mass, vmin=-0.0003, vmax=0.0003, cmap='gray')

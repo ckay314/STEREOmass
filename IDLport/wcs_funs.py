@@ -200,8 +200,8 @@ def fitshead2wcs(hdr,system=''):
 def get_Suncent(my_wcs):
     # this is simple version of wcs_get_coord with coord [0,0]
     # shouldn't use for non TAN projection
-    c2rx = cunit2rad[my_wcs['cunit'][0]]
-    c2ry = cunit2rad[my_wcs['cunit'][1]]
+    c2rx = cunit2rad[my_wcs['cunit'][0].lower()]
+    c2ry = cunit2rad[my_wcs['cunit'][1].lower()]
     coord = [0,0]
     cx = (coord[0] - my_wcs['crval'][0]) / my_wcs['cdelt'][0]
     cy = (coord[1] - my_wcs['crval'][1]) / my_wcs['cdelt'][1]
@@ -220,8 +220,8 @@ def wcs_proj_tan(my_wcs, coord, doQuick=False, force_proj=False):
         
     dtor = np.pi / 180.
     halfpi = np.pi / 2
-    cx = cunit2rad[my_wcs['cunit'][0]]
-    cy = cunit2rad[my_wcs['cunit'][1]]
+    cx = cunit2rad[my_wcs['cunit'][0].lower()]
+    cy = cunit2rad[my_wcs['cunit'][1].lower()]
 
     # Check if within 3 deg of sun, if so switch to quick proj
     # Setting force_proj to True will overwrite this

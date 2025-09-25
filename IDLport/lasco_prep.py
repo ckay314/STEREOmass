@@ -25,6 +25,22 @@ c3bkgFile  = '/Users/kaycd1/ssw/soho/lasco/idl/data/calib/3m_clcl_all.fts'
 #import scipy.io
 #from wcs_funs import fitshead2wcs, wcs_get_coord, idlsav2wcs
 
+def get_solar_ephem(yymmdd, isSOHO=False):
+    dte = parse_time(yymmdd).utc
+    j2000 = parse_time('2000/01/01').utc
+    n = dte.mjd - j2000.mjd
+    lon = 280.460 + 0.9856474 * n
+    lon = lon % 360
+    g = 357.528 + 0.9856003 * n
+    g = g * np.pi / 180.
+    dist = 1.00014 - 0.01672 * np.cos(g) - 0.00014 * np.cos(2*g)
+    if isSOHO:
+        dist = dist * 0.99
+    radius = 0.2666 / dist
+    
+    return radius, dist, lon
+
+    
 def get_exp_factor(hdr):
     tel = hdr['detector'].lower()
     mjd = hdr['mid_date']
@@ -295,10 +311,13 @@ def c2_prep(filesIn):
             im  = hdulist[0].data
             hdr = hdulist[0].header
         im, hdr = c2_calibrate(im, hdr)
+        rad, dist, lon = get_solar_ephem(hdr['date-obs'], isSOHO=True)
+        # Add in the solar rad in arcsec
+        hdr['rsun'] = rad * 3600
         ims.append(im)
         hdrs.append(hdr)
     
-    return ims, hdrs
+    return np.array(ims), hdrs
     
 def c3_prep(filesIn):
      ims, hdrs = [], []
@@ -307,10 +326,13 @@ def c3_prep(filesIn):
              im  = hdulist[0].data
              hdr = hdulist[0].header
          im, hdr = c3_calibrate(im, hdr)
+         rad, dist, lon = get_solar_ephem(hdr['date-obs'], isSOHO=True)
+         # Add in the solar rad in arcsec
+         hdr['rsun'] = rad * 3600
          ims.append(im)
          hdrs.append(hdr)
     
-     return ims, hdrs
+     return np.array(ims), hdrs
     
 
  
