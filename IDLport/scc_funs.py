@@ -397,10 +397,11 @@ def scc_zelensky_array(im, hdr, outsize, out):
     return output_img, hdr
     
     
-def secchi_rectify(a, scch, norotrate=False):
+def secchi_rectify(a, scch, norotrate=False, silent=True):
     # check not already rectified
     if scch['rectify'] not in ['F', False]:
-        print('We already done did the rectifying. Returning original img in secchi_rectify')
+        if not silent:
+            print('We already done did the rectifying. Returning original img in secchi_rectify')
         return a, scch
     
     # Check if post conjunction
@@ -956,6 +957,11 @@ def scc_getbkgimg(hdr, doRot=False):
 
     # Form the polar search string
     polstr = '_pTBr_'
+    if 'polar' in hdr:
+        polar = int(hdr['polar'])
+        if (polar <  361) & (polar >= 0):
+            polstr = '_p'+str(polar).zfill(3)+'_'
+
     # not using the totalb, double_totalB keys for now so skipping (423-427)
     
     # Get the date
@@ -1056,7 +1062,7 @@ def scc_getbkgimg(hdr, doRot=False):
                 
             else:
                 if dday > ndays:
-                    sys.exit('Cannot fine appropriate background file')
+                    sys.exit('Cannot find appropriate background file')
                     
     # Skipping more for interp, postd, doubles 
     
@@ -1192,12 +1198,89 @@ def scc_hi_diffuse(hdr, ipsum=None):
    
     return correct
     
+def scc_img_trim(im, hdr):
+    # Check for un-reprocessed data
+    if (hdr['DSTOP1'] < 1) or (hdr['DSTOP1'] > hdr['NAXIS1']) or  (hdr['DSTOP2'] > hdr['NAXIS2']):
+        im, hdr = precommcorrect(im, hdr)
+    
+    
+    
+    return im, hdr
             
             
-            
+def precommcorrect(im, hdr):
+    # Apply IcerDiv2 correction
+    if (hdr['comprssn'] > 89) & (hdr['comprssn'] < 102):
+        if hdr['DIV2CORR'] == False:
+            sys.exit('Havent ported scc_icerdiv2 in precommcorrect (in scc_funs)')
+        else:
+            biasmean = hdr['biasmean']
+            p01mbias = hdr['datap01'] - biasmean
+            if (p01mbias > 0.8 * biasmean):
+        	    im = im / 2
+        	    hdr['datap01'] = hdr['datap01'] / 2
+        	    hdr['datamin'] = hdr['datamin'] / 2
+        	    hdr['datamax'] = hdr['datamax'] / 2
+        	    hdr['dataavg'] = hdr['dataavg'] / 2
+        	    hdr['datap10'] = hdr['datap10'] / 2
+        	    hdr['datap25'] = hdr['datap25'] / 2
+        	    hdr['datap75'] = hdr['datap75'] / 2
+        	    hdr['datap90'] = hdr['datap90'] / 2
+        	    hdr['datap95'] = hdr['datap95'] / 2
+        	    hdr['datap98'] = hdr['datap98'] / 2
+        	    hdr['datap99'] = hdr['datap99'] / 2
+        	    hdr['div2corr'] = False 
+                
+    hdr['mask_tbl'] = 'NONE'
+    
+    # Correct image center
+    if hdr['DETECTOR'] == 'EUVI':
+        euvi_point(hdr)
+    else:
+        sys.exit('COR point corrections not ported in precommcorrect')
+    
+    
+    return im, hdr           
     
     
     
+def euvi_point(hdr):
+    radeg = 180 / np.pi
+    # assume passed a single header
     
+    # assume running spice
+    icy = True    
     
+    obss = hdr['obsrvtry'].upper()
+    dets = hdr['detector'].upper()
+    
+    if (obss == 'STEREO_A') & (dets == 'EUVI'):
+        obs = 0
+        obs_s = 'a'
+        flp1 = 1.0 # E-W flipped during rectify, 1=true
+        flp2 = 1.0 # S-N flipped during rectify, 1=true
+        p2a   = 1.590 * 0.9986 # EUVI plate scale in arcsec (A=0.9986*B)
+        off1  = 1027.5 # GT axis location on EUVI CCD
+        off2  = 1110.6  #relative to p1col=0,p1row=0
+        erol  = (1.245-1.125) / radeg # Roll of EUVI-N measured east from S/C N
+        grol  = -0.005  # Roll of GT-N   measured east from EUVI N
+        if 'rectrota' in hdr:
+            if hdr['rectrota'] == 4:
+                flp1 = (1.0-flp1)
+                flp2 = (1.0-flp2)
+                grol = grol + np.pi
+                erol = erol + np.pi
+    
+        # Define the pointing drift records for A
+        # If were assigning all this garbage by hand just skipping
+        # the anytim part
+        npdrec = 8 
+        pdDict = {'obs':'a', 'ver':0, 'ts':0., 'te':0., 't0':8.8361280e+08, 'torb':344.6*86400.0,' c1':np.zeros(9), 'c2':np.zeros(9)}
+        pdrec = [pdDict for i in range(npdrec)]
+        # k = 0
+        pdrec[0]['ver'] = 0
+        pdrec[0]['ts'] = 6.6268800e+08
+        pdrec[0]['te'] = 3.7869120e+09
+        pdrec[0]['t0'] = 8.8361280e+08
+        # no correction to cs
     

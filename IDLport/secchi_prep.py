@@ -1,7 +1,8 @@
 import numpy as np
 import sunpy.map
 import sys
-from scc_funs import scc_make_array, scc_zelensky_array
+from scc_funs import scc_make_array, scc_zelensky_array, scc_img_trim
+from euvi_prep import euvi_prep
 from cor_prep import cor_prep, cor_polarize
 from hi_prep import hi_prep
 from astropy.io import fits
@@ -89,7 +90,11 @@ def secchi_prep(filesIn, outSize=None, silent=False, polarizeOn=False):
         # Not including keyword rectify for now
 
         # Skipping pre commissioning since we don't seem to hit (383 - 404)
-            
+        det = hdr['DETECTOR']
+        if det == 'EUVI':
+            # Only one of our cases that hits this is EUVI
+            im, hdr = scc_img_trim(im, hdr)
+        print (im[500,900])    
         # Not hitting trimming (405 - 408)
                 
         # Rescale image to fit output size
@@ -116,8 +121,7 @@ def secchi_prep(filesIn, outSize=None, silent=False, polarizeOn=False):
         det = hdr['DETECTOR']
                 
         if det == 'EUVI':
-            print ('EUVI Prep not yet ported')
-            print (Quit)
+            im, hdr = euvi_prep(im, hdr)
         elif det == 'COR1':
             im, hdr = cor_prep(im, hdr, outSize)        
             # Do polarization below after looped
@@ -152,9 +156,10 @@ def secchi_prep(filesIn, outSize=None, silent=False, polarizeOn=False):
 #fileB = '/Users/kaycd1/wombat/fits/20241028_125330_d4c2A.fts'
 #ims, hdrs = secchi_prep([fileA, fileB])
 
-filenames = ['/Users/kaycd1/wombat/obsFiles/SECCHI/COR1_20230304_120600_n4c1a.fts', '/Users/kaycd1/wombat/obsFiles/SECCHI/COR1_20230304_120618_n4c1a.fts', '/Users/kaycd1/wombat/obsFiles/SECCHI/COR1_20230304_120636_n4c1a.fts']
+#filenames = ['/Users/kaycd1/wombat/obsFiles/SECCHI/COR1_20230304_120600_n4c1a.fts', '/Users/kaycd1/wombat/obsFiles/SECCHI/COR1_20230304_120618_n4c1a.fts', '/Users/kaycd1/wombat/obsFiles/SECCHI/COR1_20230304_120636_n4c1a.fts']
 
-ims, hdrs = secchi_prep(filenames, polarizeOn=True)
+#ims, hdrs = secchi_prep(filenames, polarizeOn=True)
 
+filenames = ['/Users/kaycd1/wombat/obsFiles/SECCHI/EUVI_171a_20230304_140930_n4eua.fts']
 
-    
+ims, hdrs = secchi_prep(filenames)    
