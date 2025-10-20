@@ -368,7 +368,7 @@ def cor1_calibrate(img, hdr, outSize=None, sebip_off=False, exptime_off=False, b
     else:
         calimg, hdr = get_calimg(hdr)
         hdr['history'] = 'Applied vignetting '
-        
+
     # Background subtraction (to do)    
     if bkgimg_off:
         bkgimg = None
@@ -391,21 +391,21 @@ def cor1_calibrate(img, hdr, outSize=None, sebip_off=False, exptime_off=False, b
         calfac = get_calfac(hdr)
         if calfac != 1:
             hdr['history'] = 'Applied calibration fact'
-               
     # Apply Calibration
     if biasmean != 0:
         img = img - biasmean
+    
     if exptime != 1:
         img = img / exptime
+    
     if bkgimg is not None:
         img = img - bkgimg
     if calimg is not None:
         img = img / calimg
-        
     # No cosmic correction
-    
     if calfac !=1:
         img = img * calfac
+    
     
     return img, hdr
     
@@ -479,8 +479,7 @@ def cor_prep(im, hdr, outSize=None, calibrate_off=False, warp_off=False):
         if (gterr != '2') & (gterr != '+'):
             print ('Havent implemented cor2_point yet')
             print (Quit)
-        im, hdr = cor2_warp(im,hdr)
-        
+        im, hdr = cor2_warp(im,hdr)        
     # Skipping rotate for now
     # Skipping color table
     
@@ -495,3 +494,86 @@ def cor_prep(im, hdr, outSize=None, calibrate_off=False, warp_off=False):
     
     return im, hdr
            
+def cor_polarize(seq, seq_hdr, doPB=False, doPolAng=False):
+    # Skipping to Muller Matrix and just doing that here
+    angle1 = seq_hdr[0]['polar'] * np.pi/180.
+    angle2 = seq_hdr[1]['polar'] * np.pi/180.
+    angle3 = seq_hdr[2]['polar'] * np.pi/180.
+    s, d   = 0.5, 0.5 
+    x = [[s, d*np.cos(2*angle1), d*np.sin(2*angle1)], [s, d*np.cos(2*angle2), d*np.sin(2*angle2)], [s, d*np.cos(2*angle3), d*np.sin(2*angle3)]]
+    # Invert it
+    mueller = np.linalg.inv(x)
+    
+    # Calculate stokes parameters for incident intensity
+    im1 = seq[0]
+    im2 = seq[1]
+    im3 = seq[2]
+    
+    I = im1*mueller[0,0] + im2*mueller[0,1] + im3*mueller[0,2] # total brigtness
+    Q = im1*mueller[1,0] + im2*mueller[1,1] + im3*mueller[1,2] 
+    U = im1*mueller[2,0] + im2*mueller[2,1] + im3*mueller[2,2]
+    
+    pbim = np.sqrt(Q**2+U**2)
+    
+    if doPB:
+        im = pbim
+        polval = 1002
+        fnstr = 'P'
+    elif doPolAng:
+        im = 0.5 * np.arctan2(U, Q)
+        polval = 1004
+        fnstr = 'A'
+        unit = 'radians'
+    else:
+        im = I
+        polval = 1001
+        fnstr = 'B'
+        
+    # Skipping percent polarization
+    
+    # Make the header
+    # Gonna assume 0 polar angle is earliest time
+    angs = np.array([angle1, angle2, angle3])
+    idx0 = np.where(angs == 0)[0][0]
+    idxf = np.where(angs == 240*np.pi/180)[0][0]
+    idxm = np.where(angs == 120*np.pi/180)[0][0]
+    hdr = seq_hdr[idx0]
+
+    # Do all the averaging, which is probably mostly unneccesary
+    # but following IDL
+    hdr['expcmd']	= (seq_hdr[0]['expcmd'] + seq_hdr[1]['expcmd'] + seq_hdr[2]['expcmd']) / 3.
+    hdr['exptime']	= -1.			# N/A for polarized product images
+    hdr['biasmean']	= (seq_hdr[0]['biasmean'] + seq_hdr[1]['biasmean'] + seq_hdr[2]['biasmean']) / 3.
+    hdr['biassdev'] = np.max(np.array([seq_hdr[0]['biassdev'], seq_hdr[1]['biassdev'], seq_hdr[2]['biassdev']]))
+    hdr['ceb_t']	= (seq_hdr[0]['ceb_t'] + seq_hdr[1]['ceb_t'] + seq_hdr[2]['ceb_t']) / 3.
+    hdr['temp_ccd']	= (seq_hdr[0]['temp_ccd'] + seq_hdr[1]['temp_ccd'] + seq_hdr[2]['temp_ccd']) / 3.
+    hdr['readtime']	= (seq_hdr[0]['readtime'] + seq_hdr[1]['readtime'] + seq_hdr[2]['readtime']) / 3.
+    hdr['cleartim']	= (seq_hdr[0]['cleartim'] + seq_hdr[1]['cleartim'] + seq_hdr[2]['cleartim']) / 3.
+    hdr['ip_time']	= np.sum(seq_hdr[0]['ip_time'] + seq_hdr[1]['ip_time'] + seq_hdr[2]['ip_time']) / 3.
+    hdr['compfact']	= (seq_hdr[0]['compfact'] + seq_hdr[1]['compfact'] + seq_hdr[2]['compfact']) / 3.
+    hdr['nmissing']	= np.sum(seq_hdr[0]['nmissing'] + seq_hdr[1]['nmissing'] + seq_hdr[2]['nmissing']) / 3.
+    hdr['tempaft1']	= (seq_hdr[0]['tempaft1'] + seq_hdr[1]['tempaft1'] + seq_hdr[2]['tempaft1']) / 3.
+    hdr['tempaft2']	= (seq_hdr[0]['tempaft2'] + seq_hdr[1]['tempaft2'] + seq_hdr[2]['tempaft2']) / 3.
+    hdr['tempmid1']	= (seq_hdr[0]['tempmid1'] + seq_hdr[1]['tempmid1'] + seq_hdr[2]['tempmid1']) / 3.
+    hdr['tempmid2']	= (seq_hdr[0]['tempmid2'] + seq_hdr[1]['tempmid2'] + seq_hdr[2]['tempmid2']) / 3.
+    hdr['tempfwd1']	= (seq_hdr[0]['tempfwd1'] + seq_hdr[1]['tempfwd1'] + seq_hdr[2]['tempfwd1']) / 3.
+    hdr['tempfwd2']	= (seq_hdr[0]['tempfwd2'] + seq_hdr[1]['tempfwd2'] + seq_hdr[2]['tempfwd2']) / 3.
+    hdr['tempthrm']	= (seq_hdr[0]['tempthrm'] + seq_hdr[1]['tempthrm'] + seq_hdr[2]['tempthrm']) / 3.
+    hdr['temp_ceb']	= (seq_hdr[0]['temp_ceb'] + seq_hdr[1]['temp_ceb'] + seq_hdr[2]['temp_ceb']) / 3.
+    hdr['date-end'] = seq_hdr[idxf]['date-avg'] # Not exact to IDL but not likely relevant
+    hdr['date-avg'] = seq_hdr[idxm]['date-avg'] # Not exact to IDL but not likely relevant
+    hdr['N_IMAGES'] = 3
+    hdr['ENCODERP'] = -1
+    hdr['CROTA']	= (seq_hdr[0]['CROTA'] + seq_hdr[1]['CROTA'] + seq_hdr[2]['CROTA']) / 3.
+    hdr['PC1_1']	= np.cos(hdr['CROTA']*np.pi/180)
+    hdr['PC1_2']	= -np.sin(hdr['CROTA']*np.pi/180) 
+    hdr['PC2_1']	= np.sin(hdr['CROTA']*np.pi/180)
+    hdr['PC2_2']	= np.cos(hdr['CROTA']*np.pi/180)
+    
+    # Skipping some comments in the header
+    hdr['POLAR'] = polval
+    if doPolAng: hdr['bunit'] = unit
+    
+    hdr['filename'] = hdr['filename'].replace('n4c', '1'+fnstr+'4c')
+    
+    return im, hdr

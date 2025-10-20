@@ -2,7 +2,7 @@ import numpy as np
 import sunpy.map
 import sys
 from scc_funs import scc_make_array, scc_zelensky_array
-from cor_prep import cor_prep
+from cor_prep import cor_prep, cor_polarize
 from hi_prep import hi_prep
 from astropy.io import fits
 
@@ -17,8 +17,9 @@ alogger.setLevel(logging.ERROR)
 np.seterr(divide='ignore')
 
 
-def secchi_prep(filesIn, outSize=None, silent=False):
+def secchi_prep(filesIn, outSize=None, silent=False, polarizeOn=False):
     # Port of the basic functionality of IDL version
+    # For polarized images need to just pass three at a time
     
     # Want filesIn as a list, even if single
     if isinstance(filesIn, str):
@@ -46,6 +47,7 @@ def secchi_prep(filesIn, outSize=None, silent=False):
     
     # Mega chunk of more keywords not using now (293 - 315)
  
+    # 326 check for polarization just sets up memory things so skip
     
     # |------------------------------------------------------|
     # |------- Create array to return images to memory ------|
@@ -117,8 +119,9 @@ def secchi_prep(filesIn, outSize=None, silent=False):
             print ('EUVI Prep not yet ported')
             print (Quit)
         elif det == 'COR1':
-            im, hdr = cor_prep(im, hdr, outSize)
-            # No polarization for now
+            im, hdr = cor_prep(im, hdr, outSize)        
+            # Do polarization below after looped
+            
         elif det == 'COR2':
             im, hdr = cor_prep(im, hdr, outSize)
              
@@ -133,6 +136,14 @@ def secchi_prep(filesIn, outSize=None, silent=False):
         # Return the things
         images_out.append(im)
         headers_out.append(hdr)
+        
+    if polarizeOn:
+        seq = images_out[::-1] # is reversed in IDL so do it here too
+        seq_hdr = headers_out[::-1]
+        im, hdr = cor_polarize(seq, seq_hdr)
+        images_out = [im]
+        headers_out = [hdr]
+        
     return images_out, headers_out
                 
     
@@ -140,4 +151,10 @@ def secchi_prep(filesIn, outSize=None, silent=False):
 #fileA = '/Users/kaycd1/wombat/fits/20241028_002330_d4c2A.fts'
 #fileB = '/Users/kaycd1/wombat/fits/20241028_125330_d4c2A.fts'
 #ims, hdrs = secchi_prep([fileA, fileB])
+
+filenames = ['/Users/kaycd1/wombat/obsFiles/SECCHI/COR1_20230304_120600_n4c1a.fts', '/Users/kaycd1/wombat/obsFiles/SECCHI/COR1_20230304_120618_n4c1a.fts', '/Users/kaycd1/wombat/obsFiles/SECCHI/COR1_20230304_120636_n4c1a.fts']
+
+ims, hdrs = secchi_prep(filenames, polarizeOn=True)
+
+
     
