@@ -94,7 +94,6 @@ def secchi_prep(filesIn, outSize=None, silent=False, polarizeOn=False):
         if det == 'EUVI':
             # Only one of our cases that hits this is EUVI
             im, hdr = scc_img_trim(im, hdr)
-        print (im[500,900])    
         # Not hitting trimming (405 - 408)
                 
         # Rescale image to fit output size
@@ -160,6 +159,8 @@ def secchi_prep(filesIn, outSize=None, silent=False, polarizeOn=False):
 
 #ims, hdrs = secchi_prep(filenames, polarizeOn=True)
 
-filenames = ['/Users/kaycd1/wombat/obsFiles/SECCHI/EUVI_171a_20230304_140930_n4eua.fts']
+#filenames = ['/Users/kaycd1/wombat/obsFiles/SECCHI/EUVI_171a_20230304_140930_n4eua.fts']
+#filenames = ['/Users/kaycd1/wombat/obsFiles/SECCHI/EUVI_284a_20230304_141330_n4eua.fts']
+#filenames = ['/Users/kaycd1/wombat/obsFiles/SECCHI/EUVI_304a_20230304_144545_n4eua.fts']
 
-ims, hdrs = secchi_prep(filenames)    
+#ims, hdrs = secchi_prep(filenames)    

@@ -199,13 +199,13 @@ def get_sunspyce_roll(date, spacecraft, system=None, instrument=None, doRad=Fals
     else:
         roll, pitch, yaw = spice.m2eul(cmat, 1,2,3)
         pitch = - pitch
-        if sc_stereo:
-            roll = roll = halfpi
+        if sc in ['-234', '-235']:
+            roll = roll - halfpi
         if sc == '-235':
             roll = roll + np.pi
         if np.abs(roll) > np.pi:
             roll = roll - math.copysign(twopi, roll)
-        
+
     # Skipping post conjuction
     
     # Correct any cases where pitch > 90 deg

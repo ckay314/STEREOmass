@@ -6,6 +6,7 @@ global topDir, LSKfile
 topDir = '/Users/kaycd1/ssw/psp/gen/data/spice'
 otherDir = '/Users/kaycd1/ssw/packages/sunspice/data'
 soloDir = '/Users/kaycd1/ssw/so/gen/data/sunspice'
+stereoDir = '/Users/kaycd1/ssw/stereo/gen/data/spice'
 
 def setupPSPkernels():
     # Get any loaded files
@@ -29,6 +30,11 @@ def setupPSPkernels():
         ckgpFile = otherDir + '/pck00011_n0066.tpc'
         if ckgpFile not in loadKerns:
             spice.furnsh(ckgpFile)
+        
+        # Load the file that makes ckgp happy
+        deFile = otherDir + '/de421.bsp'
+        if deFile not in loadKerns:
+            spice.furnsh(deFile)
         
         # Gen folder
         if 'gen' in files:
@@ -166,6 +172,90 @@ def setupPSPkernels():
                 if '.ti' in aF:
                     thisKern = soloDir+'/'+'ik/'+aF
                     if thisKern not in loadKerns:
+                        spice.furnsh(thisKern)
+      
+    # General STEREO things
+    if os.path.isdir(stereoDir):
+        files = os.listdir(stereoDir)   
+        if 'stereo_rtn.tf' in files:     
+            thisKern = stereoDir+'/'+'stereo_rtn.tf'
+            if thisKern not in loadKerns:
+                spice.furnsh(thisKern)
+                
+        if 'sclk' in files:   
+            # Ahead
+            moreFs = os.listdir(stereoDir+'/sclk/ahead/')
+            asFs = []
+            for aF in moreFs:
+                if 'ahead_science' in aF:
+                    asFs.append(aF)
+            asFs = np.sort(np.array(asFs))
+            if len(asFs) > 0:
+                thisKern = stereoDir+'/sclk/ahead/' + asFs[-1] # take the newest
+                if thisKern not in loadKerns:
+                    spice.furnsh(thisKern)
+            # Behind 
+            moreFs = os.listdir(stereoDir+'/sclk/behind/')
+            asFs = []
+            for aF in moreFs:
+                if 'ahead_science' in aF:
+                    asFs.append(aF)
+            asFs = np.sort(np.array(asFs))
+            if len(asFs) > 0:
+                thisKern = stereoDir+'/sclk/behind/' + asFs[-1] # take the newest
+                if thisKern not in loadKerns:
+                    spice.furnsh(thisKern)
+                         
+        if 'epm' in files:   
+            moreFs = os.listdir(stereoDir+'/epm/ahead/')
+            if 'ahead_2017_061_5295day_predict.epm.bsp' in moreFs:
+                thisKern = stereoDir+'/epm/ahead/ahead_2017_061_5295day_predict.epm.bsp'
+                if thisKern not in loadKerns:
+                    spice.furnsh(thisKern)
+            if 'ahead_2024_226_01.epm.bsp' in moreFs:
+                thisKern = stereoDir+'/epm/ahead/ahead_2024_226_01.epm.bsp'
+                if thisKern not in loadKerns:
+                    spice.furnsh(thisKern)
+            moreFs = os.listdir(stereoDir+'/epm/behind/')
+            if 'behind_2009_049_definitive_predict.epm.bsp' in moreFs:
+                thisKern = stereoDir+'/epm/behind/behind_2009_049_definitive_predict.epm.bsp'
+                if thisKern not in loadKerns:
+                    spice.furnsh(thisKern)
+            if 'behind_2020_301_baseline_1460day_01.epm.bsp' in moreFs:
+                thisKern = stereoDir+'/epm/behind/behind_2020_301_baseline_1460day_01.epm.bsp'
+                if thisKern not in loadKerns:
+                    spice.furnsh(thisKern)
+            if 'behind_2024_026_01.epm.bsp' in moreFs:
+                thisKern = stereoDir+'/epm/behind/behind_2024_026_01.epm.bsp'
+                if thisKern not in loadKerns:
+                    spice.furnsh(thisKern)
+            
+        if 'depm' in files:   
+            moreFs = os.listdir(stereoDir+'/depm/ahead/')
+            for aF in moreFs:
+                if '.depm.bsp' in aF:
+                    thisKern = stereoDir+'/depm/ahead/'+aF
+                    if thisKern not in loadKerns:
+                        spice.furnsh(thisKern)
+                moreFs = os.listdir(stereoDir+'/depm/behind/')
+                for aF in moreFs:
+                    if '.depm.bsp' in aF:
+                        thisKern = stereoDir+'/depm/behind/'+aF
+                        if thisKern not in loadKerns:
+                            spice.furnsh(thisKern)
+        
+        
+def loadSomeSTEREO(yd):
+    # STEREO things
+    if os.path.isdir(stereoDir):
+        files = os.listdir(stereoDir)
+        if 'ah' in files:
+            moreFs = os.listdir(stereoDir+'/ah/')
+            if 'ahead' in moreFs:
+                aKs = os.listdir(stereoDir+'/ah/ahead/')
+                for aF in aKs:
+                    if yd in aF:
+                        thisKern = stereoDir+'/ah/ahead/'+aF
                         spice.furnsh(thisKern)
 
 if False:

@@ -4,12 +4,17 @@ import datetime
 import platform
 from astropy import wcs
 import sys, os
+from scipy.io import readsav
+from sunspyce import get_sunspyce_roll, get_sunspyce_hpc_point
+from spiceTest import setupPSPkernels, loadSomeSTEREO
 
 # Hardcoded secchi backgrounds here  for now
-global secchi_bkg
+global secchi_bkg, gtFile
 secchi_bkg = '/Volumes/SRP/vourla1/sswdb/stereo/secchi/backgrounds/'
-global mjd_epoch
+gtFile = '/Users/kaycd1/ssw/stereo/secchi/data/gt/secchi_gtdbase.geny'
+global mjd_epoch, idl_base_date
 mjd_epoch = datetime.datetime(1858, 11, 17, 0, 0, 0)
+idl_base_date = datetime.datetime(1979, 1, 1, 0, 0, 0) # needed for anytim matching
 
 def def_secchi_hdr():
     hdr = {}
@@ -1028,6 +1033,7 @@ def scc_getbkgimg(hdr, doRot=False):
     # Look for the correct or closest file. IDL makes this a headache
     # This is equiv to 531-662 but ignoring interp and other stuff
     exactFile = rootdir + sdir + delim + fchar + cam + sc.upper() + polstr + sfil + postd + '.fts'
+    print (exactFile)
     if os.path.exists(exactFile):
         bkgFile = exactFile
     else:
@@ -1202,17 +1208,23 @@ def scc_img_trim(im, hdr):
     # Check for un-reprocessed data
     if (hdr['DSTOP1'] < 1) or (hdr['DSTOP1'] > hdr['NAXIS1']) or  (hdr['DSTOP2'] > hdr['NAXIS2']):
         im, hdr = precommcorrect(im, hdr)
-    
-    
-    
-    return im, hdr
+    x1 = int(hdr['DSTART1']-1)
+    x2 = int(hdr['DSTOP1']-1)
+    y1 = int(hdr['DSTART2']-1)
+    y2 = int(hdr['DSTOP2']-1)
+    img = im[y1:y2+1,x1:x2+1]
+    s = img.shape
+    if (hdr['naxis1'] != s[0]) or (hdr['naxis2'] != s[1]):
+        sys.exit('Havent implemented section of scc img trim but doable')
+        
+    return img, hdr
             
             
 def precommcorrect(im, hdr):
     # Apply IcerDiv2 correction
     if (hdr['comprssn'] > 89) & (hdr['comprssn'] < 102):
         if hdr['DIV2CORR'] == False:
-            sys.exit('Havent ported scc_icerdiv2 in precommcorrect (in scc_funs)')
+            hdr, im = scc_icerdiv2(hdr,im)
         else:
             biasmean = hdr['biasmean']
             p01mbias = hdr['datap01'] - biasmean
@@ -1235,11 +1247,72 @@ def precommcorrect(im, hdr):
     
     # Correct image center
     if hdr['DETECTOR'] == 'EUVI':
-        euvi_point(hdr)
+        hdr = euvi_point(hdr)
     else:
         sys.exit('COR point corrections not ported in precommcorrect')
     
-    
+    #--Add DSTART(STOP)1(2)------------------------------------
+    #--Code taken from revision 1.19 of scc_img_trim.pro  
+    #--Calculate data area from un-rectified image cooridinates
+    if (hdr['DSTOP1'] < 1) or (hdr['DSTOP1'] > hdr['NAXIS1']) or (hdr['DSTOP2'] > hdr['NAXIS2']):
+        x1 = 51 - hdr['P1COL']
+        if x1 < 0: x1 = 0
+        x2 = hdr['P2COL'] - hdr['P1COL']
+        if x2 > 2048 + x1 - 1: x2 = 2048 + x1 - 1
+
+        y1 = 1 - hdr['P1ROW']
+        if y1 < 0: y1 = 0
+        y2 = hdr['P2ROW'] - hdr['P1ROW']
+        if y2 > 2048 + y1 - 1: y2 = 2048 + y1 - 1
+        
+        #--Reset P1(2)COL and P1(2)ROW to trimmed values
+        if hdr['P1COL'] < 51: hdr['P1COL'] = 51
+        hdr['P2COL'] = hdr['P1COL'] + (x2-x1)
+        if hdr['P1ROW'] < 1 : hdr['P1ROW'] = 1
+        hdr['P2ROW'] = hdr['P1ROW'] + (y2-y1)
+
+        #--Correct data area cooridinates for summing
+        x1 = int(x1 / 2**(hdr['summed']-1))
+        x2 = ((hdr['P2COL'] - hdr['P1COL'] + 1)/ 2**(hdr['summed'] - 1)) + x1 - 1 
+        y1 = int(y1 / 2**(hdr['summed']-1))
+        y2 =((hdr['P2ROW'] - hdr['P1ROW'] + 1) / 2**(hdr['summed'] - 1)) + y1 - 1
+        
+        #--Convert data area cooridinates for rectified image
+        #--Reset R1(2)COL and R1(2)ROW to trimmed values
+
+        if hdr['RECTIFY'] in ['T', True, 'True', 1, '1']:
+            if (hdr['OBSRVTRY'] == 'STEREO_A'):
+                if hdr['DETECTOR'] ==  'EUVI':
+                    rx1 = hdr['naxis1'] - y2 - 1
+                    rx2 = hdr['naxis1'] - y1 - 1
+                    ry1 = hdr['naxis2'] - x2 - 1
+                    ry2 = hdr['naxis2'] - x1 - 1
+                    hdr['R1COL'] = 2176 - hdr['P2ROW'] + 1
+                    hdr['R2COL'] = 2176 - hdr['P1ROW'] + 1
+                    hdr['R1ROW'] = 2176 - hdr['P2COL'] + 1
+                    hdr['R2ROW'] = 2176 - hdr['P1COL'] + 1
+                else:
+                    sys.exit('Havent ported other detectors in precommcorrect')
+        
+            if (hdr['OBSRVTRY'] == 'STEREO_B'):
+                if hdr['DETECTOR'] ==  'EUVI':
+                    rx1 = y1
+                    rx2 = y2
+                    ry1 = hdr['naxis2'] - x2 - 1
+                    ry2 = hdr['naxis2'] - x1 - 1
+                    hdr['R1COL'] = hdr['P1ROW']
+                    hdr['R2COL'] = hdr['P2ROW']
+                    hdr['R1ROW'] = 2176 - hdr['P2COL'] + 1
+                    hdr['R2ROW'] = 2176 - hdr['P1COL'] + 1
+            x1 = rx1
+            x2 = rx2 
+            y1 = ry1
+            y2 = ry2
+        hdr['DSTART1'] = x1+1 
+        hdr['DSTART2'] = y1+1
+        hdr['DSTOP1'] = x2+1
+        hdr['DSTOP2'] = y2+1
+  
     return im, hdr           
     
     
@@ -1274,13 +1347,410 @@ def euvi_point(hdr):
         # Define the pointing drift records for A
         # If were assigning all this garbage by hand just skipping
         # the anytim part
-        npdrec = 8 
-        pdDict = {'obs':'a', 'ver':0, 'ts':0., 'te':0., 't0':8.8361280e+08, 'torb':344.6*86400.0,' c1':np.zeros(9), 'c2':np.zeros(9)}
-        pdrec = [pdDict for i in range(npdrec)]
+        pdrec = []
         # k = 0
-        pdrec[0]['ver'] = 0
-        pdrec[0]['ts'] = 6.6268800e+08
-        pdrec[0]['te'] = 3.7869120e+09
-        pdrec[0]['t0'] = 8.8361280e+08
+        aPD = {'obs':'a', 'ver':0, 'ts':0., 'te':0., 't0':8.8361280e+08, 'torb':344.6*86400.0,'c1':np.zeros(9), 'c2':np.zeros(9)}
+        aPD['ver'] = 0
+        aPD['ts'] = 6.6268800e+08
+        aPD['te'] = 3.7869120e+09
+        aPD['t0'] = 8.8361280e+08
         # no correction to cs
+        pdrec.append(aPD)
+        # k = 1
+        aPD = {'obs':'a', 'ver':0, 'ts':0., 'te':0., 't0':8.8361280e+08, 'torb':344.6*86400.0,'c1':np.zeros(9), 'c2':np.zeros(9)}
+        aPD['ver'] = 1016
+        aPD['ts'] = 8.9138880e+08
+        aPD['te'] = 9.5454720e+08
+        aPD['t0'] = 8.8361280e+08
+        aPD['c1']  = np.array([ -0.19698,  0.40215, -0.02734,  0.02834,  0.02683, 0.01781,  0.00528,  0.00799,  0.70364])
+        aPD['c2']  = np.array([  2.01189, -2.56016,  0.08225,  0.05025, -0.01835,  0.01585,  0.00151,  0.00655,  0.78864])
+        pdrec.append(aPD)
+        # k = 2 
+        aPD = {'obs':'a', 'ver':0, 'ts':0., 'te':0., 't0':8.8361280e+08, 'torb':344.6*86400.0,'c1':np.zeros(9), 'c2':np.zeros(9)}
+        aPD['ver'] = 1016
+        aPD['ts'] = 9.5454720e+08
+        aPD['te'] = 1.0176192e+09
+        aPD['t0'] = 9.4677120e+08
+        aPD['c1']  = np.array([-1.21082,  1.17563, -0.03543, -0.01422, -0.00833, 0.01370, -0.00109, -0.01159,  0.33896])
+        aPD['c2']  = np.array([ 1.61051,  0.02998,  0.01900,  0.16401, -0.01370, 0.04178,  0.00161, -0.01293, -0.99862])
+        pdrec.append(aPD)
+        # k = 3
+        aPD = {'obs':'a', 'ver':0, 'ts':0., 'te':0., 't0':8.8361280e+08, 'torb':344.6*86400.0,'c1':np.zeros(9), 'c2':np.zeros(9)}
+        aPD['ver'] = 1016
+        aPD['ts'] = 1.0176192e+09
+        aPD['te'] = 3.7869120e+09
+        aPD['t0'] = 1.0098432e+09
+        aPD['c1']  = np.array([-1.59089,  0.96487, -0.00403, -0.00339, -0.02923, -0.04176,  0.01798,  0.01447,  0.26979])
+        aPD['c2']  = np.array([ 2.28952, -0.68690, -0.10883,  0.22979, -0.00715,  0.03479,  0.00254,  0.01736,  3.86424])
+        pdrec.append(aPD)
+        # k = 4
+        aPD = {'obs':'a', 'ver':0, 'ts':0., 'te':0., 't0':8.8361280e+08, 'torb':344.6*86400.0,'c1':np.zeros(9), 'c2':np.zeros(9)}
+        aPD['ver'] = 1021
+        aPD['ts'] = 1.1479968e+09
+        aPD['te'] = 1.4078016e+09
+        aPD['t0'] = 1.0098432e+09
+        aPD['c1']     = -pdrec[3]['c1']
+        aPD['c1'][8]  =  pdrec[3]['c1'][8]   # no polarity change for exponent term
+        aPD['c2']     = -pdrec[3]['c2']      # polarity change
+        aPD['c2'][8]  =  pdrec[3]['c2'][8]
+        pdrec.append(aPD)
+        # k = 5
+        aPD = {'obs':'a', 'ver':0, 'ts':0., 'te':0., 't0':8.8361280e+08, 'torb':344.6*86400.0,'c1':np.zeros(9), 'c2':np.zeros(9)}
+        aPD['ver'] = 1023
+        aPD['ts'] = 1.1638080e+09
+        aPD['te'] = 1.3437792e+09
+        aPD['t0'] = 1.1638080e+09
+        aPD['c1']  = np.array([1.16430,  0.11202,  0.05279,  0.05599, -0.01810, 0.01131,  0.00301, -0.00421, -0.40094])
+        aPD['c2']  = np.array([-2.44524, -0.10207,  0.10195,  0.00222, -0.01788, 0.00797, -0.01294,  0.02516, -0.42572])
+        pdrec.append(aPD)
+        # k = 6
+        aPD = {'obs':'a', 'ver':0, 'ts':0., 'te':0., 't0':8.8361280e+08, 'torb':344.6*86400.0,'c1':np.zeros(9), 'c2':np.zeros(9)}
+        aPD['ver'] = 1023
+        aPD['ts'] = 1.3437792e+09
+        aPD['te'] = 3.7869120e+09
+        aPD['t0'] = 1.3437792e+09
+        aPD['c1']  = np.array([ 2.94178, -0.19203, -0.00031,  0.07529, -0.02484, -0.00588, -0.00306,  0.00382,  1.35169])
+        aPD['c2']  = np.array([-6.85677,  3.03264,  0.09955,  0.00847,  0.02142, 0.01430, -0.01344,  0.02884,  0.10000])
+        pdrec.append(aPD)
+        # k = 7
+        aPD = {'obs':'a', 'ver':0, 'ts':0., 'te':0., 't0':8.8361280e+08, 'torb':344.6*86400.0,'c1':np.zeros(9), 'c2':np.zeros(9)}
+        aPD['ver'] = 1023
+        aPD['ts'] = 1.4078016e+09
+        aPD['te'] = 1.6645824e+09
+        aPD['t0'] = 1.3437792e+09
+        aPD['c1']     = -pdrec[6]['c1']
+        aPD['c1'][8]  =  pdrec[6]['c1'][8]   # no polarity change for exponent term
+        aPD['c2']     = -pdrec[6]['c2']      # polarity change
+        aPD['c2'][8]  =  pdrec[6]['c2'][8]
+        pdrec.append(aPD)
+        
+    elif (obss == 'STEREO_B') & (dets == 'EUVI'):
+        obs = 1
+        obs_s = 'b'
+        flp1 = 0.0 # E-W flipped during rectify, 1=true
+        flp2 = 1.0 # S-N flipped during rectify, 1=true
+        p2a   = 1.590 # EUVI-B plate scale in arcsec
+        off1  = 1034.4  # GT axis location on EUVI CCD
+        off2  = 1095.7  #relative to p1col=0,p1row=0
+        erol  = -1.125 / radeg # Roll of EUVI-N measured east from S/C N
+        grol  = -0.015  # Roll of GT-N   measured east from EUVI N
+        if 'rectrota' in hdr:
+            if hdr['rectrota'] == 1:
+                flp1 = (1.0-flp1)
+                flp2 = (1.0-flp2)
+                grol = grol + np.pi
+                erol = erol + np.pi
+        
+        # Define the pointing drift records for B
+        pdrec = []
+        # k = 0
+        aPD = {'obs':'b', 'ver':0, 'ts':0., 'te':0., 't0':8.8361280e+08, 'torb':389.0*86400.0,' c1':np.zeros(9), 'c2':np.zeros(9)}
+        aPD['ver'] = 0
+        aPD['ts'] = 6.6268800e+08
+        aPD['te'] = 3.7869120e+09
+        aPD['t0'] = 8.8361280e+08
+        pdrec.append(aPD)
+        # no correction to cs
+        # k = 1
+        aPD = {'obs':'b', 'ver':0, 'ts':0., 'te':0., 't0':8.8361280e+08, 'torb':389.0*86400.0,' c1':np.zeros(9), 'c2':np.zeros(9)}
+        aPD['ver'] = 1016
+        aPD['ts'] = 8.9398080e+08
+        aPD['te'] = 9.5981760e+08
+        aPD['t0'] = 8.8620480e+08
+        aPD['c1']  = np.array([-3.61068,  3.71167,  0.04840, -0.34213, -0.00013, -0.02756, -0.00926, -0.00304,  0.10000])
+        aPD['c2']  = np.array([-3.50374,  3.65205,  0.06367, -0.01608,  0.03177, -0.12241, -0.01370,  0.08606,  0.38241])
+        pdrec.append(aPD)
+        # k = 2 
+        aPD = {'obs':'b', 'ver':0, 'ts':0., 'te':0., 't0':8.8361280e+08, 'torb':389.0*86400.0,' c1':np.zeros(9), 'c2':np.zeros(9)}
+        aPD['ver'] = 1016
+        aPD['ts'] = 9.5981760e+08
+        aPD['te'] = 1.0149408e+09
+        aPD['t0'] = 9.5204160e+08
+        aPD['c1']  = np.array([-7.40505,  6.93326, -0.06104, -0.46446, -0.04072, -0.09851,  0.00199, -0.02096,  0.10000])
+        aPD['c2']  = np.array([ -3.09684,  1.37612,  0.03446,  0.08630, -0.01247, -0.04378,  0.04979,  0.10301,  0.49868])
+        pdrec.append(aPD)
+        # k = 3
+        aPD = {'obs':'b', 'ver':0, 'ts':0., 'te':0., 't0':8.8361280e+08, 'torb':389.0*86400.0,' c1':np.zeros(9), 'c2':np.zeros(9)}
+        aPD['ver'] = 1016
+        aPD['ts'] = 1.0149408e+09
+        aPD['te'] = 3.7869120e+09
+        aPD['t0'] = 1.0071648e+09
+        aPD['c1']  = np.array([-8.56397,  7.15365, -0.49817,  0.52057,  0.02147, -0.05027, -0.00185, -0.02525,  0.10000])
+        aPD['c2']  = np.array([-2.68742,  0.23191,  0.14165, -0.38149,  0.09431, 0.05550,  0.09927,  0.07492,  4.66914])
+        pdrec.append(aPD)
+        # k = 4
+        aPD = {'obs':'b', 'ver':0, 'ts':0., 'te':0., 't0':8.8361280e+08, 'torb':389.0*86400.0,' c1':np.zeros(9), 'c2':np.zeros(9)}
+        aPD['ver'] = 1021
+        aPD['ts'] = 1.1479968e+09
+        aPD['te'] = 1.4078016e+09
+        aPD['t0'] = 1.0098432e+09
+        aPD['c1']     = -pdrec[3]['c1']
+        aPD['c1'][8]  =  pdrec[3]['c1'][8]   # no polarity change for exponent term
+        aPD['c2']     = -pdrec[3]['c2']      # polarity change
+        aPD['c2'][8]  =  pdrec[3]['c2'][8]
+        pdrec.append(aPD)
+
+    else:
+        sys.exit('Non EUIVI header passed to euvi_point')
+        
+    crpix0=[hdr['crpix1'],hdr['crpix2']]
+    cdelt0=[hdr['cdelt1'],hdr['cdelt2']]
+    
+    er1_1 =  np.cos(erol) # convert EUVI roll into PC matrix
+    er1_2 = -np.sin(erol)
+    er2_1 =  np.sin(erol)
+    er2_2 =  np.cos(erol)
+    
+    # Just take the att_file from hdr, not entirely sure what 370-400 doing
+    att_file = hdr['att_file'].replace('+1GT','')
+    t = datetime.datetime.strptime(hdr['DATE-OBS'], "%Y-%m-%dT%H:%M:%S.%f" )
+    anytim = (t-idl_base_date).total_seconds() +  hdr['exptime'] + 2.0 # end exp + 2 sec
+    dsun = hdr['dsun_obs'] / 1.496e11 # sun distance in AU
+    fpsoff = [hdr['fpsoffy'], hdr['fpsoffz']] # FPS pointing offset
+    svecg = scc_gt2sunvec(anytim, dsun, fpsoff, obs_s)
+    # rotate svec from GT to EUVI system
+    svec = [svecg[0]*np.cos(grol) - svecg[1]*np.sin(grol), svecg[0]*np.sin(grol) + svecg[1]*np.cos(grol)] 
+    
+    # Assume we are improving the pointing
+    
+    # Cannot figure out where IDL pulls this saved info from or how two calculate
+    # but the few (from 2023 test cases) all have this so run for now
+    # Suspect may need to change for earlier and/or STB events
+    usever = 1023
+    #find the appropriate pointing drift coefficient record
+    pdidx = None
+    for ii in range(len(pdrec)):
+        if (pdrec[ii]['ver'] <= usever) &  (anytim >= pdrec[ii]['ts']) & (anytim <= pdrec[ii]['te']):
+            pdidx = ii
+    if pdidx:
+        pd = pdrec[pdidx]
+    else:
+        sys.exit('Error finding matching pd record in euvi_point')
+        
+    # calculate the pointing correction
+    tpd = (anytim - pd['t0']) / pd['torb'] # orb. phase
+    pd1 = pd['c1'][0] + pd['c1'][1] * np.exp(-pd['c1'][8] * tpd) # const+exp term
+    pd2 = pd['c2'][0] + pd['c2'][1] * np.exp(-pd['c2'][8] * tpd) # const+exp term
+    for k in [1,2,3]:
+        ppd = 2.0 * np.pi * k * tpd
+        pd1 = pd1 + pd['c1'][2*k] * np.sin(ppd) + pd['c1'][2*k+1] * np.cos(ppd) 
+        pd2 = pd2 + pd['c2'][2*k] * np.sin(ppd) + pd['c2'][2*k+1] * np.cos(ppd)
+    
+    # get the summing factors, assuming image is rectified:
+    sumfac1 = 2.**int(hdr['summed'] - 1)   
+    sumfac2 = sumfac1
+    # recalculate crpix from scratch if feasible (assuming it is)
+    hdr['crpix1'] = flp1 * hdr['naxis1'] + ((1.-2.*flp1) * (off1-hdr['p1row']) - flp1 + (1.-2.*obs) * svec[1] / p2a - (sumfac1-1.)/2.) / sumfac1 + 1.
+    hdr['crpix2'] = flp2 * hdr['naxis2'] + ((1.-2.*flp2) * (off2-hdr['p1col']) - flp2 + (1.-2.*obs) * svec[0] / p2a - (sumfac2-1.)/2.) / sumfac2 + 1.
+    
+    # subtract pointing drift
+    hdr['crpix1'] = hdr['crpix1'] - pd1/sumfac1
+    hdr['crpix2'] = hdr['crpix2'] - pd2/sumfac2
+    
+    #make sure crval1,2 are zero
+    hdr['crval1'] = 0.0
+    hdr['crval2'] = 0.0
+    
+    # calculate cdelt.
+    hdr['cdelt1'] = p2a * sumfac1
+    hdr['cdelt2'] = p2a * sumfac2
+    
+    # Set instrument offset keywords
+    if 'ins_x0' in hdr:
+        hdr['ins_x0'] = p2a*((1.-2.*flp1)*((2048+1)/2.-off1)+pd1)    # arcsec
+        hdr['ins_y0'] = p2a*((1.-2.*flp2)*((2048+1)/2.-off2)+pd2)    # arcsec
+    if 'crpix1a' in hdr:    
+        hdr['crpix1a'] = hdr['crpix1']
+        hdr['crpix2a'] = hdr['crpix2']
+    if 'cdelt1a' in hdr:    
+        hdr['cdelt1a'] = -hdr['cdelt1']/3.6e3
+        hdr['cdelt2a'] = hdr['cdelt2']/3.6e3
+    # dont hit the ra/dec section
+    # Don't need to show changes
+ 
+     #sanity check between existing PC, CROTA and SC_ROLL:
+    roll_bad = 0
+    if 'sc_roll' in hdr:
+        scrota = hdr['sc_roll'] + erol* 180 / np.pi
+        pcrota = 180 / np.pi * np.atan2(hdr['pc2_1'],hdr['pc1_1'])
+        if np.abs(scrota - pcrota) > 0.1: roll_bad = 1
+        if 'crota' in hdr:
+            if np.abs(hdr['crota'] - scrota) > 0.1: roll_bad = 1
+            
+    # Assume we are doing the roll 
+    setupPSPkernels()
+    yr0 = datetime.datetime(int(hdr['date-obs'][:4]), 1, 1, 0,0,0)
+    sDOY = str(int((t-yr0).total_seconds()/3600./24. + 1)).zfill(3)
+    loadSomeSTEREO(hdr['date-obs'][:4]+'_'+sDOY)
+
+    rollrada = get_sunspyce_roll(hdr['date-obs'],'st'+obs_s,system='GEI')[0] / (180 / np.pi)
+    # convert roll into PC matrix
+    hdr['pc1_1a'] =  np.cos(rollrada)        
+    hdr['pc1_2a'] = -np.sin(rollrada)
+    hdr['pc2_1a'] =  np.sin(rollrada)
+    hdr['pc2_2a'] =  np.cos(rollrada)
+    pc1_1 = hdr['pc1_1a']
+    pc1_2 = hdr['pc1_2a']
+    pc2_1 = hdr['pc2_1a']
+    pc2_2 = hdr['pc2_2a']
+    # calculate updated pc matrix: equivalent to er # pc.
+    hdr['pc1_1a'] = er1_1 * pc1_1 + er1_2 * pc2_1
+    hdr['pc1_2a'] = er1_1 * pc1_2 + er1_2 * pc2_2
+    hdr['pc2_1a'] = er2_1 * pc1_1 + er2_2 * pc2_1
+    hdr['pc2_2a'] = er2_1 * pc1_2 + er2_2 * pc2_2
+    
+    hcv = get_sunspyce_hpc_point(hdr['date-obs'],'st'+obs_s)
+    rollrad = hcv[2] / (180 / np.pi)
+    if 'crota' in hdr:
+        hdr['crota'] = (hcv[2] + erol*(180 / np.pi)+180.0) % 360.0 - 180.0
+    
+    hdr['pc1_1'] =  np.cos(rollrad)    # convert roll into PC mtrx
+    hdr['pc1_2'] = -np.sin(rollrad)
+    hdr['pc2_1'] =  np.sin(rollrad)
+    hdr['pc2_2'] =  np.cos(rollrad)
+    pc1_1 = hdr['pc1_1']
+    pc1_2 = hdr['pc1_2']
+    pc2_1 = hdr['pc2_1']
+    pc2_2 = hdr['pc2_2']
+    # calculate updated pc matrix: equivalent to er # pc.
+    hdr['pc1_1'] = er1_1 * pc1_1 + er1_2 * pc2_1
+    hdr['pc1_2'] = er1_1 * pc1_2 + er1_2 * pc2_2
+    hdr['pc2_1'] = er2_1 * pc1_1 + er2_2 * pc2_1
+    hdr['pc2_2'] = er2_1 * pc1_2 + er2_2 * pc2_2
+    
+    # unfortunately, SECCHI supports a slew of secondary and obsolete keywords
+    if 'xcen' in hdr:
+        ceni = (hdr['naxis1']+1)/2. - hdr['crpix1']
+        cenj = (hdr['naxis2']+1)/2. - hdr['crpix2']
+        hdr['xcen'] = hdr['cdelt1'] * (hdr['pc1_1']*ceni + hdr['pc1_2']*cenj)
+        hdr['ycen'] = hdr['cdelt2'] * (hdr['pc2_1']*ceni + hdr['pc2_2']*cenj)
+    return hdr
+        
+
+
+def scc_gt2sunvec(anytim, sund, gtdata, obs, doRad=False):
+    if obs.lower() == 'a':
+        cc    = [[1.0000, 0.715e-8, 1.341e-5, 0.329e-8], [1.2843, 1.883e-7, 2.203e-4, 0.625e-7], [1.1739, 1.759e-6, 1.718e-3, 0.511e-6]]
+        yrgain = (378./256.) * 1.100    # as of 2007-04-30
+        zrgain = (378./256.) * 1.100    # as of 2007-04-30
+        ypgain = yrgain * 1.389  # pri/red based on nominal preamp resistor values
+        zpgain = zrgain * 1.389  # pri/red based on nominal preamp resistor values
+    else:
+        cc    = [[1.0000, 0.176e-8, 0.641e-5, 0.162e-8], [0.9505, 0.265e-7, 0.451e-4, 0.281e-7], [4.7232, 0.915e-6, 1.020e-3, 0.065e-6]]
+        yrgain = (378./256.) * 0.920    # as of 2007-04-30
+        zrgain = (378./256.) * 0.920    # as of 2007-04-30
+        ypgain = yrgain * 1.381  # pri/red based on nominal preamp resistor values
+        zpgain = zrgain * 1.381  # pri/red based on nominal preamp resistor values
+    # simplified version of scc_time2gtparms    
+    gt = readsav(gtFile)
+    if obs.lower() == 'a':
+        fulldb = gt['p0'].a[0]
+    fulldb = fulldb[np.where(fulldb.flg ==1 )]
+    myIdx = np.max(np.where(fulldb.t <= anytim))
+    mydb = fulldb[myIdx]
+    # Determine whether prime or redundant diodes, based on GT gain
+    if np.sum(mydb.cg2) < 450*4:
+        redun = 1
+    else:
+        redun = 0
+    # Create raw diode difference signal
+    if len(gtdata) == 2: # on-board calibrated signals
+        # "undo" on-board calibration: 1. re-apply bias
+        gtr  = [float(gtdata[0] + mydb.cg4[0]), float(gtdata[1] + mydb.cg4[1])]
+        # "undo" on-board calibration: 2. de-apply gain
+        yraw = gtr[0] * 512.0 / (mydb.cg2[0]+mydb.cg2[1])
+        zraw = gtr[1] * 512.0 / (mydb.cg2[2]+mydb.cg2[3])
+    else:
+        sys.exit('Havent ported cases where gt has more than two values')
+        
+    # Apply sun distance to the coefficients
+    rr = [1.0,sund-1.0,(sund-1.0)*(sund-1.0)]
+    cs  = np.matmul(rr, cc)
+    
+    # Calibrate yraw,zraw for 1 AU (correction matrix is normalized to 1 AU)
+    # Flip signs of cs[2] for Y redundant and Z prime
+    # (signs of initial coefficient matrix are for Y prime and Z redundant)
+    flip = [1.0,1.0,-1.0,1.0]
+    if redun:
+        y1 = yraw * yrgain
+        z1 = zraw * zrgain
+        cy = cs * flip
+        cz = cs
+    else:
+        y1 = yraw * ypgain
+        z1 = zraw * zpgain
+        cy = cs
+        cz = cs * flip
+    
+    # prepare polynomial of GT signal for correction
+    yy = [y1,y1*y1*y1,y1*z1,y1*z1*z1]
+    zz = [z1,z1*z1*z1,z1*y1,z1*y1*y1]
+    
+    # apply correction
+    svec = [np.matmul(cy, np.transpose(yy)), np.matmul(cz, np.transpose(zz))]
+    
+    # so far, units are 2e-7 rad.  Change to arcsec (default) or radian
+    fact= 180 / np.pi *3.6*2e-4
+    if doRad:
+        fact = 2e-7
+    svec = np.array(svec) * fact 
+    return svec     
+    
+def scc_icerdiv2(hdr,img):
+    ip = hdr['ip_00_19']
+    # Make sure the string is long enough, could be trimmed
+    if len(ip) < 60: ip=' '+ip  
+    if len(ip) < 60: ip=' '+ip  
+    # Sorted out this python equiv in sebip
+    ipEnc = ip.encode(encoding='utf-8')
+    byteIt = np.array([ipEnc[i] for i in range(60)]) 
+    ip = np.array([chr(byteIt[i*3])+chr(byteIt[i*3+1])+chr(byteIt[i*3+2]) for i in range(20)])
+    ip = ip.astype(int)
+    w = np.where(ip != 0)[0]
+    nip = len(w)
+    icradiv2=0
+    idecdiv2=0
+    datap01=hdr['datap01']
+    biasmean=hdr['biasmean']
+    
+    # Not hitting pipeline 
+    
+    # Calculate various conditions
+    icer = (ip[nip-1] >= 90) & (ip[nip-1] < 102)
+    div2 = ip[nip-2] == 1
+    noticfilt = (ip[nip-2] < 106) or (ip[nip-2] > 112)
+    nosubbias = not (103 in ip)
+    biasmp01  = (biasmean/2)-datap01
+    p01ltbias = (np.abs(biasmp01) < 0.02*(biasmean/2))
+    
+    # logic to determine whether data was most likely divided by 2
+    # the first part finds an explicit DIV2, the second an implicit one in ICER
+    # this logic does not determine whether the correction was already applied    
+    domul2 =  icradiv2 or idecdiv2 or (icer & noticfilt & nosubbias & p01ltbias)
+    
+    if domul2:
+        # not making the same form of 2
+        img = img * 2
+        hdr['datap01'] = hdr['datap01'] * 2
+        hdr['datamin'] = hdr['datamin'] * 2
+        hdr['datamax'] = hdr['datamax'] * 2
+        hdr['dataavg'] = hdr['dataavg'] * 2
+        hdr['datap10'] = hdr['datap10'] * 2
+        hdr['datap25'] = hdr['datap25'] * 2
+        hdr['datap75'] = hdr['datap75'] * 2
+        hdr['datap90'] = hdr['datap90'] * 2
+        hdr['datap95'] = hdr['datap95'] * 2
+        hdr['datap98'] = hdr['datap98'] * 2
+        hdr['datap99'] = hdr['datap99'] * 2
+        hdr['div2corr'] = 'T'
+        
+        if (idecdiv2 & icradiv2): hdr['div2corr'] = 'F'
+        print ('Corrected for icerdiv2')
+        
+    return hdr, img
+        
+    
+    
+    
+    
     
