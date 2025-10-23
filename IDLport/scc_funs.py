@@ -404,7 +404,7 @@ def scc_zelensky_array(im, hdr, outsize, out):
     
 def secchi_rectify(a, scch, norotrate=False, silent=True):
     # check not already rectified
-    if scch['rectify'] not in ['F', False]:
+    if scch['rectify'] not in ['F', False, 'False', '0', 0]:
         if not silent:
             print('We already done did the rectifying. Returning original img in secchi_rectify')
         return a, scch
